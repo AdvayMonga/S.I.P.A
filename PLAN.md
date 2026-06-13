@@ -54,7 +54,12 @@ transport) but proves the real architecture end to end. See `DECISIONS.md` (2026
 
 ---
 
-## Current milestone — M1: complete the Obsidian server
+## M1: complete the Obsidian server — DONE (2026-06-13)
+
+**Status: done and verified.** All ten `vault_` tools work over MCP (smoke-tested end to end:
+create/append/patch/move/trash each committed to vault git; move rewrote inbound links; trash
+soft-deleted; unresolved links flagged; reads exclude trash). `make check` green — 20 tests.
+Fully verifiable without the API key (vault ops are model-independent).
 
 **Goal.** Flesh out the full `vault_` tool surface (`VISION.md` §5.6) on the MCP server stood up
 in M0, and turn on vault git — the first destructive op is the trigger our decision named.
