@@ -1,0 +1,35 @@
+# Secrets / env
+.env
+.env.*
+!.env.example
+
+# Runtime data (derived, rebuildable — VISION.md §6): index.db, memory/, logs/
+data/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Virtual envs / uv
+.venv/
+venv/
+.python-version
+
+# Test / type / lint caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pyright/
+.coverage
+coverage.xml
+htmlcov/
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store

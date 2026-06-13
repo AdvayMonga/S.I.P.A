@@ -1,0 +1,55 @@
+# PLAN.md
+
+The work queue. Near-term scope only; empties as work finishes. North-star specs are
+`VISION.md` (the bot) and `siloop.md` (the loop) — this file holds what's *next*, not the whole
+destination.
+
+---
+
+## Current milestone — M0: thin vertical slice
+
+**Goal.** One real end-to-end path: type a message in a terminal → the bot calls Claude → it
+writes a note into the real Obsidian vault. Proves the loop, the provider, and one store
+mutation work together against real data. Everything else in `VISION.md` graduates from here.
+
+**Deliberately NOT in M0** (each deferred to its own milestone in `VISION.md` §10): daemon,
+socket, MCP host / subprocess servers, event router, token budgeting, cost accounting, semantic
+search, memory store, desktop app, Telegram. No premature infrastructure.
+
+**Scope — build in this order:**
+
+1. **config** — typed Settings: `ANTHROPIC_API_KEY`, `VAULT_PATH`. Load from env, fail fast if
+   missing.
+2. **provider** — minimal `ModelProvider` interface + `AnthropicProvider` (messages + tools →
+   response + usage). Keep the interface even with one impl; it's cheap and it's the seam the
+   local model swaps into later (`VISION.md` §5.4).
+3. **obsidian MCP server** — a real FastMCP server (its own stdio process) exposing one tool,
+   `vault_create_note(path, content)`: path-safety (confined to `VAULT_PATH`, extension
+   whitelist), atomic write (temp + rename), fails if the note exists. **No vault git yet** —
+   M0's only mutation is a non-destructive create and you watch every write in the REPL;
+   git/undo lands with the first destructive op (append/patch/move/trash) or the first
+   unattended write, whichever comes first (see `DECISIONS.md`).
+4. **host** — minimal MCP host: spawn the obsidian server over stdio, discover/aggregate its
+   tools, route tool calls to it. This is the extensibility seam every future capability *and*
+   the auto-builder target (`VISION.md` §5.5, invariant 4).
+5. **loop** — bare agent loop: given history + a user message, call the provider, run any tool
+   calls through the host, feed results back, repeat until a final text answer. Tool errors
+   return as error results so the model can recover.
+6. **cli** — read a line from stdin, run one turn, print the reply. A REPL, not a daemon.
+
+**Done when.** From a terminal, "make a note about X" creates `X.md` in the vault with sensible
+content; the tool call round-trips through the MCP host to the obsidian server; the write is
+atomic. `make check` (ruff + pyright + pytest) passes, with a unit test for `vault_create_note`
+against a temp vault (create works, path traversal blocked, no overwrite).
+
+**Resolved — real MCP server from the start** (was: in-process deferral). Building the actual
+extensibility seam up front, per `VISION.md` invariant 4. Heavier M0 (adds the host + stdio
+transport) but proves the real architecture end to end. See `DECISIONS.md` (2026-06-13).
+
+---
+
+## Next (not started)
+
+Per `VISION.md` §10: extract the Obsidian tool to a real MCP server (+ the rest of the `vault_`
+tools and write-path validation), then keyword retrieval (FTS5). The daemon / host / event-loop
+infrastructure comes when there's a brain worth keeping always-on — not before.
