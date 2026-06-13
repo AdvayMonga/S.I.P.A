@@ -25,7 +25,8 @@ doesn't enforce. The human reviews every diff; that review is the enforcement.
 ## Coding guidelines
 
 1. **Think before coding.** State assumptions, surface tradeoffs. Unclear → ask before
-   implementing. Multiple interpretations → present them, don't pick silently.
+   implementing. Multiple interpretations → present them, don't pick silently. Plan before
+   every major change.
 2. **Simplicity first.** Minimum code that solves the problem. No speculative abstractions,
    no unrequested config knobs, no error handling for impossible cases. If 200 lines could
    be 50, rewrite.
@@ -50,7 +51,8 @@ _Set at the start of the Foundation milestone, on 2026-06-13. Valid until revise
   surfacing assumptions and any two-sided calls — *then* code. Small slices: `PLAN.md` only. You
   see the plan before code lands.
 - **One feature, one commit.** Each capability (per `VISION.md` §10 build order) lands on its
-  own commit before the next starts. No "milestone everything" mega commit.
+  own commit before the next starts. No "milestone everything" mega commit. Better smaller than
+  larger; name each commit with `feat`/`fix`/the appropriate prefix and keep the message concise.
 - **Verify before every commit.** Run the verifier's **fast profile** (`VERIFIER.md` checks
   1–5: build → typecheck → lint → existing tests → secret scan) — the same deterministic gate the
   auto-builder runs at full depth, just shallower. This is what keeps `main` green, which the
