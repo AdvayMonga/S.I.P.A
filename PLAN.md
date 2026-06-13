@@ -8,11 +8,10 @@ destination.
 
 ## Current milestone — M0: thin vertical slice
 
-**Status (2026-06-13): code-complete, verified except the live model turn.** All five components
-built and committed; `make check` green (ruff + pyright + pytest, 4 tests). MCP round-trip
-smoke-tested end to end (host spawns the obsidian server, discovers `vault_create_note`, routes a
-call, writes the note atomically, surfaces the overwrite error). **Remaining:** fill `.env`
-(`ANTHROPIC_API_KEY`, `VAULT_PATH`) and run one live turn (`make run`) to confirm steps 5–6.
+**Status (2026-06-13): DONE.** Live turn verified end to end — Claude Opus 4.8 → MCP host →
+obsidian server → real vault (`~/Desktop/CORE`): the bot created a note and committed it to the
+vault's git as a clean, separately-attributed commit. All five components built; `make check`
+green. M0 complete.
 
 **Goal.** One real end-to-end path: type a message in a terminal → the bot calls Claude → it
 writes a note into the real Obsidian vault. Proves the loop, the provider, and one store
