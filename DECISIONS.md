@@ -70,3 +70,14 @@ or writes when you're not watching — there's no Ctrl-Z for a proactive multi-n
 the undo + the audit log of what the bot did. While the only op is a watched, non-destructive
 create, "just delete the stray note" suffices and git is avoidable complexity. Keep it in
 `VISION.md` §6 as the design; realize it when destructive/unattended writes make it earn its keep.
+
+## 2026-06-13 — Vault git activated in M1 (trigger condition met)
+
+**Decision.** Vault git (`vault_git.py`: init-on-demand + auto-commit per mutation, local-only)
+ships with M1, because M1 adds the first destructive/surgical ops (`append`/`patch`/`move`/`trash`).
+This executes the deferral above — the named trigger ("first destructive op") is now met. Commit
+happens in `server.py` (the sole mutation entry point), not in the pure `vault.py` ops.
+
+**Why.** Directly follows the prior deferral; not a new judgment call. The manual-edit-frictionless
+requirement (`VISION.md` §6, watcher auto-commit) is **not** in M1 — only the bot's own mutations
+are committed for now; a debounced watcher for human edits comes later.

@@ -8,7 +8,7 @@ Status: `planned` · `building` · `built`.
 
 | Feature | Status | Design doc | Blurb |
 |---|---|---|---|
-| _none yet_ | — | — | First design doc gets added here when a feature is large enough to need one (M0 is small — `PLAN.md` covers it). |
+| Obsidian server | building | [obsidian-server.md](design/obsidian-server.md) | The ten `vault_` tools (act on the vault by path) + vault git + write-path validation. |
 
 ---
 

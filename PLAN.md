@@ -54,8 +54,33 @@ transport) but proves the real architecture end to end. See `DECISIONS.md` (2026
 
 ---
 
+## Current milestone — M1: complete the Obsidian server
+
+**Goal.** Flesh out the full `vault_` tool surface (`VISION.md` §5.6) on the MCP server stood up
+in M0, and turn on vault git — the first destructive op is the trigger our decision named.
+Design: `design/obsidian-server.md`.
+
+**Scope:**
+
+1. **Reads** — `vault_read_note`, `vault_list_notes(folder?)`, `vault_search_text(query, limit,
+   regex)`, `vault_resolve_link(title)`, `vault_get_backlinks(path)`. Naive filesystem scans (no
+   index yet — FTS5/graph are their own later milestones in §10).
+2. **Mutations** — `vault_create_note` (+ optional frontmatter), `vault_append(under_heading?)`,
+   `vault_patch_section(heading)`, `vault_move_note` (best-effort inbound `[[link]]` rewrite),
+   `vault_trash_note` (soft delete to `/_trash`). Each is atomic and **git auto-committed**.
+3. **Vault git** (`vault_git.py`) — init the vault repo on demand, commit per mutation, local
+   identity, never pushed. Realizes invariant 1 now that destructive ops exist.
+4. **Write-path validation** — reject malformed frontmatter before it lands; flag (don't reject)
+   unresolved `[[links]]`. Table-column validation deferred (`BACKLOG.md`).
+
+**Done when.** All ten `vault_` tools work over MCP; mutations land as vault git commits;
+malformed frontmatter is rejected; `make check` passes with unit tests for each tool against a
+temp vault.
+
+---
+
 ## Next (not started)
 
-Per `VISION.md` §10: extract the Obsidian tool to a real MCP server (+ the rest of the `vault_`
-tools and write-path validation), then keyword retrieval (FTS5). The daemon / host / event-loop
-infrastructure comes when there's a brain worth keeping always-on — not before.
+Per `VISION.md` §10: keyword retrieval (FTS5-backed `vault_search_text`), then the semantic
+index (chunking, embeddings, graph). The daemon / host / event-loop infrastructure comes when
+there's a brain worth keeping always-on — not before.
