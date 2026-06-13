@@ -53,6 +53,9 @@ _Set at the start of the Foundation milestone, on 2026-06-13. Valid until revise
 - **One feature, one commit.** Each capability (per `VISION.md` §10 build order) lands on its
   own commit before the next starts. No "milestone everything" mega commit. Better smaller than
   larger; name each commit with `feat`/`fix`/the appropriate prefix and keep the message concise.
+- **Push after each commit.** This repo has a remote (`origin`); push `main` right after
+  committing so it stays current — no batching. (The Obsidian vault's git is local-only and is
+  never pushed — `VISION.md` §6.)
 - **Verify before every commit.** Run the verifier's **fast profile** (`VERIFIER.md` checks
   1–5: build → typecheck → lint → existing tests → secret scan) — the same deterministic gate the
   auto-builder runs at full depth, just shallower. This is what keeps `main` green, which the
