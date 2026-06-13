@@ -1,0 +1,44 @@
+[project]
+name = "sipa-bot"
+version = "0.0.0"
+description = "S.I.P.A. — personal AI bot base layer (M0 thin slice)"
+requires-python = ">=3.12"
+dependencies = [
+    "anthropic>=0.40",
+    "mcp>=1.2",
+    "pydantic>=2",
+    "pydantic-settings>=2",
+]
+
+[project.scripts]
+sipa = "bot.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "ruff>=0.6",
+    "pyright>=1.1.380",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/bot"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pyright]
+include = ["src", "tests"]
+pythonVersion = "3.12"
+typeCheckingMode = "standard"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
