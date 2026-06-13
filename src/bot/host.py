@@ -13,8 +13,9 @@ from mcp.client.stdio import stdio_client
 class MCPHost:
     """Holds one stdio MCP server (obsidian) open for the process lifetime."""
 
-    def __init__(self, vault_path: str) -> None:
+    def __init__(self, vault_path: str, index_path: str) -> None:
         self._vault_path = vault_path
+        self._index_path = index_path
         self._stack = AsyncExitStack()
         self._session: ClientSession | None = None
         self._tools: list[dict[str, Any]] = []
@@ -23,7 +24,11 @@ class MCPHost:
         params = StdioServerParameters(
             command=sys.executable,
             args=["-m", "bot.servers.obsidian.server"],
-            env={"VAULT_PATH": self._vault_path, "PATH": os.environ.get("PATH", "")},
+            env={
+                "VAULT_PATH": self._vault_path,
+                "INDEX_PATH": self._index_path,
+                "PATH": os.environ.get("PATH", ""),
+            },
         )
         read, write = await self._stack.enter_async_context(stdio_client(params))
         session = await self._stack.enter_async_context(ClientSession(read, write))

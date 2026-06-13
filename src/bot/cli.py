@@ -12,7 +12,9 @@ from .provider import AnthropicProvider
 async def _main() -> None:
     settings = Settings()  # type: ignore[call-arg]  # loaded from env / .env
     provider = AnthropicProvider(settings)
-    async with MCPHost(str(settings.vault_path)) as host:
+    async with MCPHost(
+        str(settings.vault_path), str(settings.index_path.resolve())
+    ) as host:
         history: list[Any] = []
         print("S.I.P.A. ready. Ctrl-D to exit.")
         while True:
