@@ -83,7 +83,11 @@ temp vault.
 
 ---
 
-## Current milestone — M2: keyword retrieval (FTS5)
+## M2: keyword retrieval (FTS5) — DONE (2026-06-13)
+
+**Status: done and verified.** FTS5 index live; `vault_search_text` BM25-ranked with snippets;
+within-session upserts + trash-deletes confirmed via MCP smoke test; reindex-on-startup picks up
+manual edits; regex fallback intact. `make check` green — 25 tests.
 
 **Goal.** Replace the linear `vault_search_text` scan with a BM25-ranked SQLite FTS5 index, so
 "what did I note about X" returns relevance-ranked real hits the model can read and cite
