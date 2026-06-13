@@ -83,8 +83,34 @@ temp vault.
 
 ---
 
+## Current milestone — M2: keyword retrieval (FTS5)
+
+**Goal.** Replace the linear `vault_search_text` scan with a BM25-ranked SQLite FTS5 index, so
+"what did I note about X" returns relevance-ranked real hits the model can read and cite
+(`VISION.md` §10 keyword-retrieval). Design: `design/obsidian-server.md` § Index.
+
+**Scope:**
+
+1. **`index.py`** — FTS5 virtual table (`path UNINDEXED, content`, porter tokenizer) in
+   `data/index.db`. Functions: `reindex(vault)`, `upsert(path, content)`, `delete(path)`,
+   `search(query, limit)` → ranked `{path, snippet, score}`. One connection per call (low traffic).
+2. **Wiring** — `config.index_path` (default `data/index.db`); host passes an absolute
+   `INDEX_PATH` to the server. Server **reindexes on startup** (catches manual Obsidian edits) and
+   **upserts/deletes incrementally** on every mutation (create/append/patch/move/trash).
+3. **`vault_search_text`** — keyword path → FTS5 (ranked snippets); `regex=True` keeps the linear
+   `vault.search_text` fallback (§5.6 "keyword/regex").
+
+**Done when.** FTS5-ranked search returns relevant notes with snippets + scores; new/edited notes
+are searchable within the session; the index rebuilds from the vault on start; `make check` passes
+with unit tests for reindex/upsert/delete/search.
+
+**Not in M2.** Automatic context assembly (§5.9) — retrieval stays tool-driven. Incremental
+mtime/hash-keyed reindex + a file watcher come with the semantic-index milestone (`BACKLOG.md`).
+
+---
+
 ## Next (not started)
 
-Per `VISION.md` §10: keyword retrieval (FTS5-backed `vault_search_text`), then the semantic
-index (chunking, embeddings, graph). The daemon / host / event-loop infrastructure comes when
-there's a brain worth keeping always-on — not before.
+Per `VISION.md` §10 after M2: semantic vault index (chunking, embeddings, sqlite-vec, hybrid RRF,
+graph), then the memory server. The daemon / host / event-loop infrastructure comes when there's
+a brain worth keeping always-on — not before.

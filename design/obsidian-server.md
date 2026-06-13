@@ -36,6 +36,18 @@ only in the sense that this is the living design — the spec stays in `VISION.m
 - **Validation** — frontmatter must parse (`python-frontmatter`) or the write is rejected.
   Unresolved `[[links]]` are flagged in the tool's reply, not rejected (forward links are valid).
 
+## Index (M2 — keyword retrieval)
+
+- `index.py` — a SQLite **FTS5** virtual table (`path UNINDEXED, content`, `porter unicode61`
+  tokenizer) at `data/index.db` (in the bot's repo, gitignored, **not** in the vault; derived and
+  rebuildable per invariant 8). One connection opened/closed per call — fine at personal-bot scale.
+- **Lifecycle:** the server **reindexes the whole vault on startup** (so manual Obsidian edits are
+  reflected), and **upserts/deletes incrementally** as the bot mutates notes within a session
+  (create/append/patch → upsert; move → delete old + upsert new; trash → delete).
+- **`vault_search_text`** keyword path queries FTS5 ranked by `bm25()`, returning `{path, snippet,
+  score}`. Query terms are quoted (AND) so arbitrary text can't trip FTS syntax. `regex=True` keeps
+  the linear-scan fallback for exact/regex matching.
+
 ## Deliberately deferred (see `BACKLOG.md`)
 
 - **FTS5 / graph index** — `search_text`, `resolve_link`, `backlinks` are unindexed scans now;
