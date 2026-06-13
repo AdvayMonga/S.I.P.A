@@ -12,5 +12,6 @@ class Settings(BaseSettings):
 
     anthropic_api_key: str
     vault_path: Path
+    index_path: Path = Path("data/index.db")
     model: str = "claude-opus-4-8"
     max_tokens: int = 8192
