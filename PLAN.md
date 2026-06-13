@@ -8,6 +8,12 @@ destination.
 
 ## Current milestone — M0: thin vertical slice
 
+**Status (2026-06-13): code-complete, verified except the live model turn.** All five components
+built and committed; `make check` green (ruff + pyright + pytest, 4 tests). MCP round-trip
+smoke-tested end to end (host spawns the obsidian server, discovers `vault_create_note`, routes a
+call, writes the note atomically, surfaces the overwrite error). **Remaining:** fill `.env`
+(`ANTHROPIC_API_KEY`, `VAULT_PATH`) and run one live turn (`make run`) to confirm steps 5–6.
+
 **Goal.** One real end-to-end path: type a message in a terminal → the bot calls Claude → it
 writes a note into the real Obsidian vault. Proves the loop, the provider, and one store
 mutation work together against real data. Everything else in `VISION.md` graduates from here.
