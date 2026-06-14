@@ -53,6 +53,12 @@ _Set at the start of the Foundation milestone, on 2026-06-13. Valid until revise
 - **One feature, one commit.** Each capability (per `VISION.md` §10 build order) lands on its
   own commit before the next starts. No "milestone everything" mega commit. Better smaller than
   larger; name each commit with `feat`/`fix`/the appropriate prefix and keep the message concise.
+- **Process docs ride with their code — no solo docs commits by default.** Updates to
+  `HANDOFF.md`/`PLAN.md`/`DECISIONS.md`/`BACKLOG.md` are bundled into the same commit as the code
+  change that motivated them, not split into their own commit. Two exceptions earn a standalone
+  docs commit: (a) a doc change we explicitly discussed and decided on its own, or (b) a change to
+  a key rule/agreement that's about the docs or process *in general* (like this bullet) rather than
+  tied to any code change.
 - **Push after each commit.** This repo has a remote (`origin`); push `main` right after
   committing so it stays current — no batching. (The Obsidian vault's git is local-only and is
   never pushed — `VISION.md` §6.)
