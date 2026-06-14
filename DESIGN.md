@@ -8,7 +8,8 @@ Status: `planned` · `building` · `built`.
 
 | Feature | Status | Design doc | Blurb |
 |---|---|---|---|
-| Obsidian server | building | [obsidian-server.md](design/obsidian-server.md) | The ten `vault_` tools (act on the vault by path) + vault git + write-path validation. |
+| Obsidian server | built | [obsidian-server.md](design/obsidian-server.md) | The ten `vault_` tools (act on the vault by path) + vault git + write-path validation + FTS5 index. |
+| Scheduler | building | [scheduler.md](design/scheduler.md) | Recurring tasks (vault-note store) + on-open trigger; multi-server host. |
 
 ---
 

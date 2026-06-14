@@ -25,3 +25,11 @@ belongs.
   `pyproject`. For true MCP independence (and future non-Python servers), give each server its own
   deps (its own `pyproject`/venv) and have the host spawn it with that environment. Top-level
   `servers/` is the structural signal; this is the enforcement.
+
+## From M3 (scheduler)
+
+- **Extract `vault_git` to shared server infra** — the scheduler imports `servers.obsidian.vault_git`
+  to commit its `_system/Scheduled.md` changes. It's vault infrastructure, not obsidian logic; move
+  it to a shared module (e.g. `servers/_shared/`) so cross-server git use isn't an obsidian dependency.
+- **True timer firing** — M3 runs due tasks on-open. Unattended wall-clock scheduling needs the
+  daemon's timer source + event router (proactive-triggers milestone, `VISION.md` §5.2/§5.10).

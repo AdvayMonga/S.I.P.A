@@ -92,3 +92,18 @@ path `bot.servers.obsidian` → `servers.obsidian`; `pyproject` packages both `s
 never Python-imports it — so it shouldn't live *under* the `bot` package. M0 nested it for
 packaging convenience; corrected now while there's a single server. Top-level placement is the
 signal of independence; true per-server dependency isolation is deferred (`BACKLOG.md`).
+
+## 2026-06-13 — Scheduler: vault-note definitions + data-side last-run; on-open trigger (M3)
+
+**Decision.** Recurring tasks are a `scheduler` MCP server. Task **definitions** (prompt, cadence,
+enabled) live in the vault note `_system/Scheduled.md` (user-visible/editable, versioned); **last-run
+timestamps** live in `data/scheduler_state.json` (operational, gitignored). The **trigger** is the
+loop at startup (runs due tasks via the host, pure MCP) — a stand-in for the daemon's timer source.
+The `MCPHost` is generalized to spawn multiple servers (obsidian + scheduler) and route by tool name.
+
+**Why.** Splitting definitions (vault) from last-run (data) honors "the store you see is a vault
+note" while keeping the vault from churning on every run. On-open triggering needs no daemon and
+works for "daily" via last-run timestamps even with intermittent use. Core never imports the
+scheduler — it asks via MCP, so tasks stay out of core (invariant 5). The scheduler commits its
+definition changes by importing `servers.obsidian.vault_git` (shared vault infra; flagged for
+extraction in BACKLOG).

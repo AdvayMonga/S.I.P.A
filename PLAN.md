@@ -113,8 +113,37 @@ mtime/hash-keyed reindex + a file watcher come with the semantic-index milestone
 
 ---
 
+## Current milestone — M3: scheduler (recurring tasks, on-open trigger)
+
+**Goal.** Let the bot hold a persistent list of recurring tasks ("summarize my day", daily) and
+run the due ones when it opens. Tasks live in data (a vault note), not core (invariant 5).
+Design: `design/scheduler.md`.
+
+**Scope:**
+
+1. **Multi-server host** — generalize `MCPHost` to spawn N servers (obsidian + scheduler) and
+   route tool calls to the owning server (`VISION.md` §5.5). Generic; no task content in core.
+2. **Scheduler server** (`servers/scheduler/`) — store + tools. Task *definitions* (prompt,
+   cadence ∈ on-open|daily|weekly, enabled) live in the vault note `_system/Scheduled.md`
+   (visible/editable in Obsidian, versioned). Last-run timestamps live in
+   `data/scheduler_state.json` (operational, gitignored). Tools: `schedule_task`,
+   `list_scheduled_tasks` (with due status), `cancel_task`, `mark_task_ran`.
+3. **On-open trigger** — at REPL start, the loop calls `list_scheduled_tasks`, runs each due task
+   through `run_turn`, then `mark_task_ran`. Pure MCP (core doesn't import the server). "Daily"
+   works via last-run timestamps even if you open the bot intermittently.
+4. **`_system/` excluded** from vault listing/search/index (like `_trash`) so the scheduler note
+   doesn't pollute knowledge results.
+
+**Done when.** "Schedule a daily summary" persists a task in the vault note; reopening runs it
+once per day; `make check` passes with unit tests for the store + due logic.
+
+**Not in M3.** True unattended wall-clock firing (timer source in the daemon) — that's the
+proactive-triggers milestone. On-open is the stand-in until the daemon exists.
+
+---
+
 ## Next (not started)
 
-Per `VISION.md` §10 after M2: semantic vault index (chunking, embeddings, sqlite-vec, hybrid RRF,
-graph), then the memory server. The daemon / host / event-loop infrastructure comes when there's
-a brain worth keeping always-on — not before.
+**M4 — semantic vault index:** chunking + embeddings + `sqlite-vec`, hybrid-fused (RRF) with the
+M2 FTS5 index; graph expansion later. Then the **memory server** (the bot's model of you). The
+daemon / event-router / true timer source come when there's a brain worth keeping always-on.
