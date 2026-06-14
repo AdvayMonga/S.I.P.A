@@ -35,6 +35,11 @@ def _servers(settings: Settings) -> dict[str, StdioServerParameters]:
             args=["-m", "servers.vault_search.server"],
             env={**base_env, "VSEARCH_DB": str(settings.vault_search_db_path.resolve())},
         ),
+        "memory": StdioServerParameters(
+            command=sys.executable,
+            args=["-m", "servers.memory.server"],
+            env={**base_env, "MEMORY_DB": str(settings.memory_db_path.resolve())},
+        ),
     }
 
 

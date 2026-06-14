@@ -7,7 +7,7 @@ import warnings
 
 from mcp.server.fastmcp import FastMCP
 
-from servers.vault_search.embed import FastEmbedEmbedder
+from embedding import FastEmbedEmbedder
 from servers.vault_search.index import SemanticIndex
 
 # Quiet model download/load noise. fastembed imports lazily on first embed, so setting these at

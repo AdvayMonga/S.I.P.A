@@ -11,7 +11,7 @@ server; the core (`src/bot`) only routes turns and spawns servers, never imports
 `VISION.md`. The self-improving auto-builder (`siloop.md` etc.) is **not built** — built by hand
 only after the bot works (bot → loop → autonomy).
 
-## Status: M0–M4 done, all on GitHub
+## Status: M0–M5 done, all on GitHub
 
 - **M0** — loop: terminal → Claude → MCP host → vault. Live-verified.
 - **M1** — Obsidian server: 10 `vault_` tools + atomic writes + frontmatter validation + vault git.
@@ -20,25 +20,33 @@ only after the bot works (bot → loop → autonomy).
   `data/`), run on open. Host generalized to spawn N servers.
 - **M4** — semantic index: `vault_search` server — chunk + local fastembed (bge-small) + NumPy
   cosine + FTS5, hybrid-fused (RRF). `semantic_search` recalls by meaning.
-- **Refactor** — `servers/` at repo root (not under `src/bot`).
+- **M5** — memory server: one SQLite store (`data/memory.db`), profile + recall tiers split by
+  `kind`. Recall-tier embedded (shared `embedding` package); `memory_recall` = vector-only cosine;
+  profile returned wholesale under a char cap; `memory_consolidate` dedups by `keys` + evicts. 8
+  `memory_` tools, tool-driven. **Source of truth** (persistent, not reindexed), gitignored.
+- **Refactor** — `servers/` at repo root; shared infra extracted to `vaultfs` + `embedding`.
 
-`make check` green: ruff + pyright + **37 tests**.
+`make check` green: ruff + pyright + **47 tests**.
 
 ## Layout
 
 ```
-src/bot/      core: config, cli (+ on-open scheduler trigger), host (multi-server), loop, provider
-src/vaultfs/  SHARED infra: vault.py (path-safe fs ops), vault_git.py (local git). Every server
-              depends downward on this; bot (router) never imports it. No server imports another.
-servers/      capabilities (independent MCP processes, spawned by the host):
+src/bot/       core: config, cli (+ on-open scheduler trigger), host (multi-server), loop, provider
+src/vaultfs/   SHARED infra: vault.py (path-safe fs ops), vault_git.py (local git).
+src/embedding/ SHARED infra: Embedder protocol + FastEmbedEmbedder (bge-small). vault_search +
+               memory depend downward on it. bot (router) never imports shared infra; no server
+               imports another.
+servers/       capabilities (independent MCP processes, spawned by the host):
   obsidian/      10 vault_ tools, FTS5 keyword index (obsidian-only)
   scheduler/     recurring-task store (vault note) + tools
-  vault_search/  chunk, embed (fastembed), index (hybrid RRF), server
+  vault_search/  chunk, index (hybrid RRF), server
+  memory/        store (profile+recall tiers, one SQLite table) + 8 memory_ tools
 tests/
-data/         index.db, vault_search.db, scheduler_state.json (gitignored, rebuildable)
+data/          index.db, vault_search.db, scheduler_state.json (rebuildable) + memory.db
+               (SOURCE OF TRUTH, not rebuildable). All gitignored.
 ```
 
-Three servers run per session: obsidian, scheduler, vault_search → 16 aggregated tools.
+Four servers run per session: obsidian, scheduler, vault_search, memory → 24 aggregated tools.
 
 ## How to run / verify
 
@@ -58,7 +66,10 @@ Three servers run per session: obsidian, scheduler, vault_search → 16 aggregat
 
 ## Context not obvious from code
 
-- **No cross-session memory yet** — conversation history is per-REPL-run. Memory server is next.
+- **Memory is tool-driven, not auto-injected** — the model calls `memory_get_profile`/
+  `memory_recall`/`memory_remember` like it calls `vault_search`. Conversation history is still
+  per-REPL-run; always-injecting the profile + fusing memory/vault under one token budget is
+  Context-assembly v2 (§5.9). Memory is a durable *store* now, but nothing assembles it per-turn yet.
 - **Retrieval is tool-driven** — model calls `vault_search_text` (keyword) / `semantic_search`
   (meaning) → reads → cites. Automatic context assembly (§5.9) is later.
 - **Scheduling is on-open only** — true unattended wall-clock firing needs the daemon's timer
@@ -69,8 +80,8 @@ Three servers run per session: obsidian, scheduler, vault_search → 16 aggregat
 
 ## Next (see `PLAN.md` "Next")
 
-1. **Memory server** — the bot's model of you (profile + episodic recall), reusing index machinery.
-2. **Daemon + event router + timer source** — always-on, real proactive triggers + Telegram.
+1. **Daemon + event router + timer source** — always-on, real proactive triggers + Telegram.
+2. **Context assembly v2** (§5.9) — always-inject profile + fuse memory/vault under one token budget.
 
 ## Gotchas
 

@@ -1,4 +1,5 @@
-"""Embedders behind a small protocol. Default: local fastembed. Tests inject a stub."""
+"""Shared embedding infra. Top-level package (parallel to vaultfs) so every server that needs
+vectors depends downward on it — no server imports another (see DECISIONS.md)."""
 
 from typing import Any, Protocol
 

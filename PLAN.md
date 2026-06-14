@@ -154,8 +154,21 @@ recalls by meaning (a synonym query sharing no words ranked the right note first
 startup. `make check` green — 37 tests. `sqlite-vec` unusable (this Python can't load extensions)
 → NumPy brute-force; sqlite-vec/LanceDB are the scale path.
 
+## M5: memory server — DONE (2026-06-13)
+
+**Status: done and verified.** `memory` server: one SQLite store (`data/memory.db`), profile +
+recall tiers split by `kind`. Recall-tier entries embedded (shared `embedding` package, extracted
+from `vault_search`); `memory_recall` is vector-only cosine over active recall entries; profile
+returned wholesale under a char cap. Mechanical `memory_consolidate` (dedup by `keys`, evict oldest
+profile over cap). 8 tools live over MCP — round-trip smoke-tested (remember → profile/recall/open
+tasks ranked by meaning). `make check` green — 47 tests. Design: `design/memory-server.md`.
+
+Tool-driven for M5 (no auto profile injection — that's Context-assembly v2, §5.9); the store is the
+**source of truth**, persistent (no reindex on start), gitignored (local-only, no remote backup).
+
 ## Next (not started)
 
-The **memory server** (the bot's model of you — profile + episodic recall), then the **daemon +
-event router + true timer source** (always-on, real proactive triggers). Graph expansion
-(`expand_context`) and incremental/mtime-keyed reindex are deferred (`BACKLOG.md`).
+The **daemon + event router + true timer source** (always-on, real proactive triggers), then
+**Context assembly v2** (§5.9 — always-inject profile + fuse memory/vault under one token budget).
+Graph expansion (`expand_context`), incremental/mtime-keyed reindex, and memory's own local-only
+git are deferred (`BACKLOG.md`).

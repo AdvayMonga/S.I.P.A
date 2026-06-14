@@ -3,7 +3,9 @@
 .env.*
 !.env.example
 
-# Runtime data (derived, rebuildable — VISION.md §6): index.db, memory/, logs/
+# Runtime data (VISION.md §6). Mostly derived/rebuildable (index.db, vault_search.db,
+# scheduler_state.json), EXCEPT memory.db — the memory store is source-of-truth, local-only,
+# no remote backup (design/memory-server.md). Gitignored for privacy; relies on local backup.
 data/
 
 # Python

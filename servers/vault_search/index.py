@@ -11,8 +11,8 @@ from typing import Any
 
 import numpy as np
 
+from embedding import Embedder
 from servers.vault_search import chunk as chunking
-from servers.vault_search.embed import Embedder
 from vaultfs import vault
 
 _RRF_K = 60

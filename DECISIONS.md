@@ -144,3 +144,26 @@ belong in foundational shared infra, not inside one capability.
 core-level shared infra — but it is **not inside `bot`**, and `bot` never imports it. The turn-routing
 core stays vault-ignorant, preserving the spirit of invariants 4/5 while giving every server one
 clean shared dependency.
+
+## 2026-06-13 — `embedding` top-level package; recall-tier-only vectors; `done` needs a tool
+
+**Decision (extraction).** `Embedder` + `FastEmbedEmbedder` moved out of
+`servers/vault_search/embed.py` into a new top-level package `src/embedding/` (importable as
+`embedding`), parallel to `vaultfs`. Both `vault_search` and the new `memory` server now import the
+embedder *downward* from it; neither imports the other.
+
+**Why.** Same rule as the `vaultfs` extraction: the memory server (M5) needs the *same* embedder
+`vault_search` uses, and importing it from `servers.vault_search` would have recreated the exact
+cross-server coupling we just removed. Shared infra goes in a shared package, not inside a sibling
+capability. The ~5-line cosine stays duplicated in each store — a shared vector-store abstraction
+over two different schemas (chunks vs. memory entries) would be premature at two consumers.
+
+**Decision (vectors).** Only recall-tier entries are embedded; profile entries store `vec = NULL`.
+**Why.** Profile is returned wholesale by `memory_get_profile`, never vector-searched, so embedding
+it is wasted compute. `memory_recall` is vector-only over recall entries (design's stated M5 scope).
+
+**Decision (`done` status).** Added a `memory_complete_task(id)` tool not in the design's tool table.
+**Why.** The design's schema mandates `status='done'` for tasks, but its tool list gave no way to
+reach it — `forget` deletes and `update` supersedes, neither marks done. Without a tool, `done`
+would be unreachable dead state. `memory_complete_task` is the minimal realization of the status the
+schema already requires; it drops a task from `list_open_tasks` while keeping it as history.
