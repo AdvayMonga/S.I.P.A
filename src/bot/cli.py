@@ -1,21 +1,60 @@
-"""REPL front-end: read a line, run a turn, print the reply. No daemon yet."""
+"""REPL front-end: run any due scheduled tasks on open, then read-eval-print. No daemon yet."""
 
 import asyncio
+import json
+import os
+import sys
 from typing import Any
+
+from mcp import StdioServerParameters
 
 from .config import Settings
 from .host import MCPHost
 from .loop import run_turn
-from .provider import AnthropicProvider
+from .provider import AnthropicProvider, ModelProvider
+
+
+def _servers(settings: Settings) -> dict[str, StdioServerParameters]:
+    base_env = {
+        "VAULT_PATH": str(settings.vault_path),
+        "PATH": os.environ.get("PATH", ""),
+    }
+    return {
+        "obsidian": StdioServerParameters(
+            command=sys.executable,
+            args=["-m", "servers.obsidian.server"],
+            env={**base_env, "INDEX_PATH": str(settings.index_path.resolve())},
+        ),
+        "scheduler": StdioServerParameters(
+            command=sys.executable,
+            args=["-m", "servers.scheduler.server"],
+            env={**base_env, "STATE_PATH": str(settings.scheduler_state_path.resolve())},
+        ),
+    }
+
+
+async def _run_due_tasks(
+    history: list[Any], provider: ModelProvider, host: MCPHost
+) -> None:
+    """On-open trigger: run each due scheduled task through a normal turn."""
+    listing, _ = await host.call_tool("list_scheduled_tasks", {})
+    due = [t for t in json.loads(listing) if t["due"]]
+    if not due:
+        return
+    print(f"Running {len(due)} scheduled task(s)...")
+    for task in due:
+        print(f"[scheduled · {task['cadence']}] {task['prompt']}")
+        reply = await run_turn(history, task["prompt"], provider, host)
+        print(f"sipa> {reply}")
+        await host.call_tool("mark_task_ran", {"id": task["id"]})
 
 
 async def _main() -> None:
     settings = Settings()  # type: ignore[call-arg]  # loaded from env / .env
     provider = AnthropicProvider(settings)
-    async with MCPHost(
-        str(settings.vault_path), str(settings.index_path.resolve())
-    ) as host:
+    async with MCPHost(_servers(settings)) as host:
         history: list[Any] = []
+        await _run_due_tasks(history, provider, host)
         print("S.I.P.A. ready. Ctrl-D to exit.")
         while True:
             try:

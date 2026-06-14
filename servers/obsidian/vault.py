@@ -11,6 +11,7 @@ import frontmatter
 
 ALLOWED_SUFFIXES = {".md"}
 TRASH_DIR = "_trash"
+INTERNAL_DIRS = {"_trash", "_system"}  # bot-internal; excluded from listing/search/index
 
 _WIKILINK = re.compile(r"\[\[([^\]|#\n]+)")
 _HEADING = re.compile(r"^(#{1,6})\s+(.*?)\s*$")
@@ -56,11 +57,11 @@ def _atomic_write(target: Path, content: str) -> None:
 
 
 def _iter_notes(root: Path, base: Path) -> Iterator[Path]:
-    """Yield `*.md` under `base`, excluding the vault's `_trash` tree."""
-    trash = (root / TRASH_DIR).resolve()
+    """Yield `*.md` under `base`, excluding the vault's internal trees (`_trash`, `_system`)."""
+    internal = {(root / name).resolve() for name in INTERNAL_DIRS}
     for path in sorted(base.rglob("*.md")):
         resolved = path.resolve()
-        if resolved == trash or trash in resolved.parents:
+        if any(resolved == d or d in resolved.parents for d in internal):
             continue
         yield path
 
