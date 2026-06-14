@@ -47,3 +47,36 @@ belongs.
 - **Shared vault-read infra** — DONE (2026-06-13): `vault.py` + `vault_git.py` extracted to the
   top-level `vaultfs` package (`src/vaultfs/`); all servers now depend downward on it, none import
   each other. See `DECISIONS.md`.
+
+## For the Context-assembly v2 milestone (`VISION.md` §5.9) — production-quality concerns
+
+The three-source fused-under-budget design is the industry-standard RAG+memory shape; it's correct.
+These are the upgrades real systems add *around* it. Most don't matter until assembly is live and
+the bot actually knows you across sessions — revisit when building this milestone, not before.
+
+- **Retrieval quality (highest leverage).** Plain top-k similarity is mediocre. In priority order:
+  (a) **rerank** the top ~N candidates with a cross-encoder — reads query+chunk together, usually the
+  single biggest quality jump (VISION §12 already flags "add if precision is weak" — this is where);
+  (b) **query transformation** — rewrite the user's literal words before searching: resolve pronouns
+  from history, split into sub-queries, optionally HyDE (embed a hypothetical answer). Vague
+  follow-ups ("what about the second one?") retrieve garbage without this; (c) **chunking** tuning —
+  overlapping windows, small-to-big (embed small, return the parent section).
+- **When to retrieve at all.** Today the model decides via tool calls (agentic retrieval — already
+  good). For pushed assembly, add light routing so trivial turns ("thanks!") don't pull noise into
+  the budget.
+- **Memory lifecycle (the genuinely hard part, scale-independent).** Consolidation/prune is already
+  scoped (§5.8) but the sharp edges: *what's worth distilling* (junk vs. durable fact); *contradiction*
+  ("vegetarian" last month vs. "had steak" today — newest-wins is a heuristic, not a solution);
+  *decay* (relevance = recency × importance × frequency, not just similarity); *dedup/merge* of
+  near-duplicate memories. These determine whether memory helps or rots.
+- **Budget packing & ordering.** Under a token cap, selecting the best subset is a small knapsack
+  problem; also place the strongest chunks at the start/end of context ("lost in the middle"), and
+  dedup the same fact appearing in both memory and the vault so it isn't paid for twice.
+- **Provenance & injection.** Pulling untrusted vault/note text into context is an attack surface
+  ("ignore previous instructions" in a note). Keep provenance tags (already in §5.9) and treat
+  retrieved content as data, not instructions.
+- **Eval.** Don't eyeball assembly quality — extend the retrieval golden set to measure
+  recall@k / faithfulness / answer-relevance so changes here are gated, not guessed.
+
+Deferred deliberately: latency budgets, ANN/HNSW, multi-tenant permission-filtered search — these
+are operational-scale taxes that don't bite a single-user local bot. Revisit only if something hurts.
