@@ -30,6 +30,11 @@ def _servers(settings: Settings) -> dict[str, StdioServerParameters]:
             args=["-m", "servers.scheduler.server"],
             env={**base_env, "STATE_PATH": str(settings.scheduler_state_path.resolve())},
         ),
+        "vault_search": StdioServerParameters(
+            command=sys.executable,
+            args=["-m", "servers.vault_search.server"],
+            env={**base_env, "VSEARCH_DB": str(settings.vault_search_db_path.resolve())},
+        ),
     }
 
 

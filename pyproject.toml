@@ -5,7 +5,9 @@ description = "S.I.P.A. — personal AI bot base layer (M0 thin slice)"
 requires-python = ">=3.12"
 dependencies = [
     "anthropic>=0.40",
+    "fastembed>=0.8.0",
     "mcp>=1.2",
+    "numpy>=2.4.6",
     "pydantic>=2",
     "pydantic-settings>=2",
     "python-frontmatter>=1.1",

@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     anthropic_api_key: str
     vault_path: Path
     index_path: Path = Path("data/index.db")
+    vault_search_db_path: Path = Path("data/vault_search.db")
     scheduler_state_path: Path = Path("data/scheduler_state.json")
     model: str = "claude-opus-4-8"
     max_tokens: int = 8192
