@@ -121,3 +121,26 @@ project Python is disruptive. NumPy brute-force is correct and fast at personal-
 real constraint is the embed pass, not the cosine). `sqlite-vec`/LanceDB remain the scale path
 (needs a different SQLite build). fastembed keeps embeddings on-device (local-first). Hybrid RRF
 beats either channel alone — a synonym query with no shared words still ranks the right note.
+
+---
+
+## 2026-06-13 — `vaultfs` top-level package for shared vault infra
+
+**Decision.** Extracted the vault filesystem primitives (`vault.py`) and local git (`vault_git.py`)
+out of the obsidian server into a new top-level package, `src/vaultfs/` (importable as `vaultfs`).
+All capability servers — obsidian, scheduler, vault_search, and future ones (memory) — now import
+*downward* from `vaultfs`; no server imports another server. The obsidian FTS5 keyword index
+(`servers/obsidian/index.py`) stays in obsidian (it's obsidian's own index, not shared).
+
+**Why.** Three servers were reaching sideways into the obsidian server's modules
+(`scheduler → vault_git`, `vault_search → vault`), which broke the plug-in independence the
+architecture promises (`VISION.md` invariant 4): obsidian was acting as a hidden shared library, a
+layering inversion where infra was owned by a sibling capability. The memory server (M5) would have
+been the third such consumer, calcifying the tangle — better to extract before it lands than untangle
+four servers later. The vault is the substrate every capability is built around, so its primitives
+belong in foundational shared infra, not inside one capability.
+
+**Placement nuance.** `vaultfs` lives under `src/` next to the routing core `bot`, so it reads as
+core-level shared infra — but it is **not inside `bot`**, and `bot` never imports it. The turn-routing
+core stays vault-ignorant, preserving the spirit of invariants 4/5 while giving every server one
+clean shared dependency.

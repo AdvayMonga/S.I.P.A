@@ -1,7 +1,8 @@
 from pathlib import Path
 
 import pytest
-from servers.obsidian import vault
+
+from vaultfs import vault
 
 # --- create -------------------------------------------------------------------
 

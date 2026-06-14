@@ -44,5 +44,6 @@ belongs.
 - **Cross-server index freshness** — a note created mid-session isn't in the semantic index until
   next start. Solve with the daemon + a shared/event-driven index, not per-server reindex.
 - **`expand_context` (graph)** — link-graph expansion of results (`VISION.md` §5.7) not yet built.
-- **Shared vault-read infra** — `vault_search` imports `servers.obsidian.vault` to read notes.
-  Extract vault fs read (+ `vault_git`) to a shared module so servers don't depend on each other.
+- **Shared vault-read infra** — DONE (2026-06-13): `vault.py` + `vault_git.py` extracted to the
+  top-level `vaultfs` package (`src/vaultfs/`); all servers now depend downward on it, none import
+  each other. See `DECISIONS.md`.

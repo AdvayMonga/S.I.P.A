@@ -1,6 +1,8 @@
 from pathlib import Path
 
-from servers.obsidian import index, vault
+from servers.obsidian import index
+
+from vaultfs import vault
 
 
 def _db(tmp_path: Path) -> Path:

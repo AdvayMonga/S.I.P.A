@@ -5,7 +5,7 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
-from servers.obsidian import vault
+from vaultfs import vault
 
 _TABLE = (
     "CREATE VIRTUAL TABLE IF NOT EXISTS notes "

@@ -1,7 +1,7 @@
 import subprocess
 from pathlib import Path
 
-from servers.obsidian import vault_git
+from vaultfs import vault_git
 
 
 def _log(root: Path) -> list[str]:

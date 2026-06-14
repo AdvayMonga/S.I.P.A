@@ -2,9 +2,10 @@ import hashlib
 from pathlib import Path
 
 import numpy as np
-from servers.obsidian import vault
 from servers.vault_search import chunk as chunking
 from servers.vault_search.index import SemanticIndex
+
+from vaultfs import vault
 
 
 class StubEmbedder:

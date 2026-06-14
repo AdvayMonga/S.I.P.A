@@ -28,8 +28,10 @@ only after the bot works (bot → loop → autonomy).
 
 ```
 src/bot/      core: config, cli (+ on-open scheduler trigger), host (multi-server), loop, provider
+src/vaultfs/  SHARED infra: vault.py (path-safe fs ops), vault_git.py (local git). Every server
+              depends downward on this; bot (router) never imports it. No server imports another.
 servers/      capabilities (independent MCP processes, spawned by the host):
-  obsidian/      10 vault_ tools, vault_git, FTS5 index
+  obsidian/      10 vault_ tools, FTS5 keyword index (obsidian-only)
   scheduler/     recurring-task store (vault note) + tools
   vault_search/  chunk, embed (fastembed), index (hybrid RRF), server
 tests/
@@ -61,8 +63,8 @@ Three servers run per session: obsidian, scheduler, vault_search → 16 aggregat
   (meaning) → reads → cites. Automatic context assembly (§5.9) is later.
 - **Scheduling is on-open only** — true unattended wall-clock firing needs the daemon's timer
   source (a later milestone). "Daily" works via last-run timestamps even with intermittent use.
-- **Cross-server coupling debt** — scheduler imports `obsidian.vault_git`; vault_search imports
-  `obsidian.vault`. Flagged in `BACKLOG.md` (extract vault fs/git to shared infra).
+- **Cross-server coupling debt — RESOLVED (2026-06-13)** — vault fs/git extracted to the top-level
+  `vaultfs` package; servers depend downward on it, none import each other. See `DECISIONS.md`.
 - Why-decisions: `DECISIONS.md`; deferred scope: `BACKLOG.md`; per-feature designs: `design/`.
 
 ## Next (see `PLAN.md` "Next")

@@ -11,9 +11,9 @@ from typing import Any
 
 import numpy as np
 
-from servers.obsidian import vault  # shared vault read (see BACKLOG: extract to shared)
 from servers.vault_search import chunk as chunking
 from servers.vault_search.embed import Embedder
+from vaultfs import vault
 
 _RRF_K = 60
 

@@ -6,8 +6,8 @@ from datetime import datetime
 
 from mcp.server.fastmcp import FastMCP
 
-from servers.obsidian import vault_git  # shared vault git infra (see BACKLOG: extract to shared)
 from servers.scheduler import store
+from vaultfs import vault_git
 
 mcp = FastMCP("scheduler")
 
