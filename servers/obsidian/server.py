@@ -5,7 +5,7 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
-from bot.servers.obsidian import index, vault, vault_git
+from servers.obsidian import index, vault, vault_git
 
 mcp = FastMCP("obsidian")
 

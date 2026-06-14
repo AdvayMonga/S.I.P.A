@@ -1,4 +1,4 @@
-# review.md
+# REVIEW.md
 
 The rubric for the advisory code review (the advisory AI review in `verifier.md`). This **is the review
 subagent's instructions** — loaded into its fresh, sealed context with the diff, the spec, and

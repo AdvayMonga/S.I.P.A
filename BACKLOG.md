@@ -18,3 +18,10 @@ belongs.
   yet check markdown table column consistency (`VISION.md` §5.6). Add to `vault.validate_markdown`.
 - **`vault_move_note` path-qualified link rewrite** — inbound link update is stem-based
   (`[[old-stem]]` → `[[new-stem]]`); it does not handle path-qualified or aliased links robustly.
+
+## From the servers/ relocation
+
+- **Per-server dependency isolation** — all servers currently share the core's single venv/
+  `pyproject`. For true MCP independence (and future non-Python servers), give each server its own
+  deps (its own `pyproject`/venv) and have the host spawn it with that environment. Top-level
+  `servers/` is the structural signal; this is the enforcement.

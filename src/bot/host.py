@@ -23,7 +23,7 @@ class MCPHost:
     async def __aenter__(self) -> "MCPHost":
         params = StdioServerParameters(
             command=sys.executable,
-            args=["-m", "bot.servers.obsidian.server"],
+            args=["-m", "servers.obsidian.server"],
             env={
                 "VAULT_PATH": self._vault_path,
                 "INDEX_PATH": self._index_path,

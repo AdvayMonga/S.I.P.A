@@ -81,3 +81,14 @@ happens in `server.py` (the sole mutation entry point), not in the pure `vault.p
 **Why.** Directly follows the prior deferral; not a new judgment call. The manual-edit-frictionless
 requirement (`VISION.md` §6, watcher auto-commit) is **not** in M1 — only the bot's own mutations
 are committed for now; a debounced watcher for human edits comes later.
+
+## 2026-06-13 — servers/ relocated to the repo root (out of src/bot)
+
+**Decision.** Moved `src/bot/servers/` → top-level `servers/`, matching `VISION.md` §4. Import
+path `bot.servers.obsidian` → `servers.obsidian`; `pyproject` packages both `src/bot` and
+`servers`; the host spawns `python -m servers.obsidian.server`.
+
+**Why.** An MCP server is an independent process the core reaches only over stdio — the core
+never Python-imports it — so it shouldn't live *under* the `bot` package. M0 nested it for
+packaging convenience; corrected now while there's a single server. Top-level placement is the
+signal of independence; true per-server dependency isolation is deferred (`BACKLOG.md`).
