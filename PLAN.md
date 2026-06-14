@@ -113,7 +113,11 @@ mtime/hash-keyed reindex + a file watcher come with the semantic-index milestone
 
 ---
 
-## Current milestone — M3: scheduler (recurring tasks, on-open trigger)
+## M3: scheduler — DONE (2026-06-13)
+
+**Status: done and verified.** Multi-server host live; scheduler tools persist tasks to the vault
+note + commit; due logic correct; on-open trigger runs due tasks; `_system/` excluded from search.
+`make check` green.
 
 **Goal.** Let the bot hold a persistent list of recurring tasks ("summarize my day", daily) and
 run the due ones when it opens. Tasks live in data (a vault note), not core (invariant 5).
@@ -142,8 +146,16 @@ proactive-triggers milestone. On-open is the stand-in until the daemon exists.
 
 ---
 
+## M4: semantic vault index — DONE (2026-06-13)
+
+**Status: done and verified.** `vault_search` server: heading-aware chunking + local fastembed
+(bge-small) embeddings + NumPy brute-force cosine + FTS5, hybrid-fused via RRF. `semantic_search`
+recalls by meaning (a synonym query sharing no words ranked the right note first). Reindex on
+startup. `make check` green — 37 tests. `sqlite-vec` unusable (this Python can't load extensions)
+→ NumPy brute-force; sqlite-vec/LanceDB are the scale path.
+
 ## Next (not started)
 
-**M4 — semantic vault index:** chunking + embeddings + `sqlite-vec`, hybrid-fused (RRF) with the
-M2 FTS5 index; graph expansion later. Then the **memory server** (the bot's model of you). The
-daemon / event-router / true timer source come when there's a brain worth keeping always-on.
+The **memory server** (the bot's model of you — profile + episodic recall), then the **daemon +
+event router + true timer source** (always-on, real proactive triggers). Graph expansion
+(`expand_context`) and incremental/mtime-keyed reindex are deferred (`BACKLOG.md`).

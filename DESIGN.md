@@ -9,7 +9,8 @@ Status: `planned` · `building` · `built`.
 | Feature | Status | Design doc | Blurb |
 |---|---|---|---|
 | Obsidian server | built | [obsidian-server.md](design/obsidian-server.md) | The ten `vault_` tools (act on the vault by path) + vault git + write-path validation + FTS5 index. |
-| Scheduler | building | [scheduler.md](design/scheduler.md) | Recurring tasks (vault-note store) + on-open trigger; multi-server host. |
+| Scheduler | built | [scheduler.md](design/scheduler.md) | Recurring tasks (vault-note store) + on-open trigger; multi-server host. |
+| Semantic index | built | [semantic-index.md](design/semantic-index.md) | `vault_search` server: chunk + embed + hybrid (vector + FTS5) RRF recall by meaning. |
 
 ---
 

@@ -33,3 +33,16 @@ belongs.
   it to a shared module (e.g. `servers/_shared/`) so cross-server git use isn't an obsidian dependency.
 - **True timer firing** — M3 runs due tasks on-open. Unattended wall-clock scheduling needs the
   daemon's timer source + event router (proactive-triggers milestone, `VISION.md` §5.2/§5.10).
+
+## From M4 (semantic index)
+
+- **`sqlite-vec` / LanceDB at scale** — current vector search is brute-force NumPy because the uv
+  Python's `sqlite3` can't load extensions. At larger scale, use a SQLite build with extension
+  loading (for `sqlite-vec`) or LanceDB.
+- **Incremental / mtime-keyed embed reindex** — `vault_search` re-embeds the whole vault on every
+  start. Cache by file hash/mtime so only changed notes re-embed (pairs with the FTS mtime item).
+- **Cross-server index freshness** — a note created mid-session isn't in the semantic index until
+  next start. Solve with the daemon + a shared/event-driven index, not per-server reindex.
+- **`expand_context` (graph)** — link-graph expansion of results (`VISION.md` §5.7) not yet built.
+- **Shared vault-read infra** — `vault_search` imports `servers.obsidian.vault` to read notes.
+  Extract vault fs read (+ `vault_git`) to a shared module so servers don't depend on each other.

@@ -107,3 +107,17 @@ works for "daily" via last-run timestamps even with intermittent use. Core never
 scheduler — it asks via MCP, so tasks stay out of core (invariant 5). The scheduler commits its
 definition changes by importing `servers.obsidian.vault_git` (shared vault infra; flagged for
 extraction in BACKLOG).
+
+## 2026-06-13 — Semantic index: NumPy brute-force (not sqlite-vec), local fastembed, own server (M4)
+
+**Decision.** Semantic recall is a separate `vault_search` server (`VISION.md` §5.7), independent of
+obsidian. Embeddings: local **fastembed** bge-small (384-dim), behind an `Embedder` protocol (tests
+inject a stub). Vectors stored as blobs in SQLite and searched **brute-force in NumPy** — not
+`sqlite-vec` — because this Python (python-build-standalone via uv) is compiled without
+`enable_load_extension`. Retrieval is **hybrid**: vector cosine + FTS5 keyword, fused with RRF.
+
+**Why.** `sqlite-vec` is a loadable extension; the uv Python can't load it, and switching the
+project Python is disruptive. NumPy brute-force is correct and fast at personal-vault scale (the
+real constraint is the embed pass, not the cosine). `sqlite-vec`/LanceDB remain the scale path
+(needs a different SQLite build). fastembed keeps embeddings on-device (local-first). Hybrid RRF
+beats either channel alone — a synonym query with no shared words still ranks the right note.
