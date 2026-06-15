@@ -64,7 +64,8 @@ servers/       capabilities (independent MCP processes, spawned by the host):
   scheduler/     recurring-task store (vault note) + tools
   vault_search/  chunk, index (hybrid RRF), server
   memory/        store (profile+recall tiers, one SQLite table) + 9 memory_ tools
-desktop/       basic Tauri v2 app (Rust shell + static chat UI) → daemon socket. Outside the pkg.
+desktop/       Tauri v2 dashboard (React+Vite+TS frontend + Rust shell) → daemon socket. Outside pkg.
+               status bar (state-pulse signature) + configurable PANELS (placeholder) + chat.
 tests/
 data/          index.db, vault_search.db, scheduler_state.json (rebuildable) + memory.db
                (SOURCE OF TRUTH, not rebuildable). All gitignored.
