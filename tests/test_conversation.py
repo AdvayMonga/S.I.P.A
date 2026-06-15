@@ -9,6 +9,7 @@ from bot.conversation import (
     KEEP_RECENT_TURNS,
     Conversation,
     _render,
+    finalize_summary,
     maybe_compact,
 )
 
@@ -79,6 +80,20 @@ def test_cut_never_lands_on_a_tool_result() -> None:
     # First kept message must be a real user turn, never an orphaned tool_result.
     first = convo.messages[0]
     assert first["role"] == "user" and isinstance(first["content"], str)
+
+
+def test_finalize_summary_folds_remaining() -> None:
+    convo = _convo(2)  # has messages but under the compaction threshold
+    out = asyncio.run(finalize_summary(convo, FakeProvider()))
+    assert out == "ROLLED SUMMARY"
+
+
+def test_finalize_summary_no_messages_keeps_prior() -> None:
+    convo = Conversation(summary="prior")  # nothing new this session
+    provider = FakeProvider()
+    out = asyncio.run(finalize_summary(convo, provider))
+    assert out == "prior"
+    assert provider.calls == 0  # no LLM call when there's nothing to fold
 
 
 def test_render_flattens_tools() -> None:

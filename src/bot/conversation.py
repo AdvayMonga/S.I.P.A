@@ -47,6 +47,14 @@ async def maybe_compact(convo: Conversation, provider: ModelProvider) -> bool:
     return True
 
 
+async def finalize_summary(convo: Conversation, provider: ModelProvider) -> str:
+    """End-of-session distillation: fold all remaining messages into the summary. No new messages
+    → the existing summary unchanged."""
+    if not convo.messages:
+        return convo.summary
+    return await _summarize(provider, convo.summary, convo.messages)
+
+
 async def _summarize(provider: ModelProvider, prior: str, messages: list[Any]) -> str:
     transcript = _render(messages)
     content = (f"Prior summary:\n{prior}\n\n" if prior else "") + f"New transcript:\n{transcript}"

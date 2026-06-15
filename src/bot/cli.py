@@ -9,7 +9,7 @@ import sys
 from mcp import StdioServerParameters
 
 from .config import Settings
-from .conversation import Conversation
+from .conversation import Conversation, finalize_summary
 from .daemon import Daemon, Handler, Submit
 from .host import MCPHost
 from .loop import run_turn
@@ -77,13 +77,27 @@ def _make_fire_due(host: MCPHost):
     return fire_due
 
 
+async def _persist_session(convo: Conversation, provider: ModelProvider, host: MCPHost) -> None:
+    """On shutdown, distill the session into a durable memory episode (resume warm next time)."""
+    if not convo.messages:
+        return
+    try:
+        summary = await finalize_summary(convo, provider)
+        if summary:
+            await host.call_tool("memory_remember", {"content": summary, "kind": "episode"})
+            print("session saved.")
+    except Exception as exc:  # never let a bad save block exit
+        print(f"[warn] could not save session: {exc}")
+
+
 async def _main() -> None:
     logging.basicConfig(level=logging.WARNING, format="%(name)s: %(message)s")
     logging.getLogger("sipa.cost").setLevel(logging.INFO)
     settings = Settings()  # type: ignore[call-arg]  # loaded from env / .env
     provider = make_provider(settings)
     async with MCPHost(_servers(settings)) as host:
-        daemon = Daemon(_make_handler(Conversation(), provider, host))
+        convo = Conversation()
+        daemon = Daemon(_make_handler(convo, provider, host))
         sources = [
             SocketSource(str(settings.socket_path.resolve())),
             TimerSource(_make_fire_due(host), settings.timer_interval),
@@ -93,6 +107,7 @@ async def _main() -> None:
             await daemon.run(sources)
         except* ShutdownSignal:
             pass  # stdin EOF → clean exit
+        await _persist_session(convo, provider, host)
 
 
 def main() -> None:
