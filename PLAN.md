@@ -239,8 +239,14 @@ Extremely basic Tauri v2 shell in `desktop/`: chat UI → `ask` command → daem
 (`cargo check`). Design: `design/desktop.md`. Telegram dropped per user. Production bundling (real
 icons) + persistent connection deferred.
 
+## M11: session-summary persistence — DONE (2026-06-15)
+
+On shutdown `_persist_session` distills the session (`finalize_summary`) into a memory `episode`; on
+startup `_resume_session` seeds `Conversation.summary` from the latest episode → resume warm. Skips
+empty sessions; bad saves never block exit.
+
 ## Later (not started)
 
-Token budgeting/cost rollups, session-summary persistence across restarts, graph expansion,
-incremental/mtime reindex, memory's own local-only git, wiring `LocalProvider` to a real runtime
+Token budgeting/cost rollups, graph expansion, incremental/mtime reindex, memory's own local-only
+git, wiring `LocalProvider` to a real runtime, episode growth/pruning over many sessions
 (`BACKLOG.md`).

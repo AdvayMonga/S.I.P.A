@@ -1,10 +1,11 @@
 import asyncio
+import json
 from types import SimpleNamespace
 from typing import Any
 
 from anthropic.types import TextBlock
 
-from bot.cli import _persist_session
+from bot.cli import _persist_session, _resume_session
 from bot.conversation import Conversation
 
 
@@ -35,3 +36,24 @@ def test_persist_skips_empty_session() -> None:
     host = RecordingHost()
     asyncio.run(_persist_session(Conversation(), FakeProvider(), host))  # type: ignore[arg-type]
     assert host.calls == []  # nothing said → nothing saved
+
+
+class EpisodeHost:
+    def __init__(self, episodes: list[dict]) -> None:
+        self._episodes = episodes
+
+    async def call_tool(self, name: str, arguments: dict) -> tuple[str, bool]:
+        return (json.dumps(self._episodes), False)
+
+
+def test_resume_loads_latest_episode() -> None:
+    convo = Conversation()
+    host = EpisodeHost([{"content": "older"}, {"content": "latest"}])  # oldest→newest
+    asyncio.run(_resume_session(convo, host))  # type: ignore[arg-type]
+    assert convo.summary == "latest"
+
+
+def test_resume_no_episodes_is_noop() -> None:
+    convo = Conversation()
+    asyncio.run(_resume_session(convo, EpisodeHost([])))  # type: ignore[arg-type]
+    assert convo.summary == ""

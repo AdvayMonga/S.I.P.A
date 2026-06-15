@@ -77,6 +77,17 @@ def _make_fire_due(host: MCPHost):
     return fire_due
 
 
+async def _resume_session(convo: Conversation, host: MCPHost) -> None:
+    """Warm start: seed the rolling summary with the most recent session episode."""
+    listing, is_error = await host.call_tool("memory_list", {"kind": "episode"})
+    if is_error:
+        return
+    episodes = json.loads(listing)
+    if episodes:
+        convo.summary = episodes[-1]["content"]  # memory_list is ordered oldest→newest
+        print("resumed from last session.")
+
+
 async def _persist_session(convo: Conversation, provider: ModelProvider, host: MCPHost) -> None:
     """On shutdown, distill the session into a durable memory episode (resume warm next time)."""
     if not convo.messages:
@@ -97,6 +108,7 @@ async def _main() -> None:
     provider = make_provider(settings)
     async with MCPHost(_servers(settings)) as host:
         convo = Conversation()
+        await _resume_session(convo, host)
         daemon = Daemon(_make_handler(convo, provider, host))
         sources = [
             SocketSource(str(settings.socket_path.resolve())),
