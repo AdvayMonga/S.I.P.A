@@ -81,9 +81,11 @@ Four servers run per session: obsidian, scheduler, vault_search, memory → 25 a
 - **Run:** `make run` (= `uv run sipa`) starts the **daemon**: it binds the Unix socket
   (`~/.sipa/sipa.sock`), starts the wall-clock timer (fires due scheduled tasks; on-open at startup),
   and gives you the terminal REPL. `Ctrl-D` exits. First run downloads the ~50MB embedding model.
-- **External client:** `uv run sipa-client` connects to a running daemon's socket from another
-  terminal. The **desktop app**: `cd desktop && cargo tauri dev` (no env var needed; see
-  `desktop/README.md`).
+- **Everything at once:** `make dev` (= `scripts/dev.sh`) — runs the daemon in the foreground
+  (REPL + cost logs + Ctrl-D-saves-session) and the desktop app in the background (logs →
+  `/tmp/sipa-desktop.log`); Ctrl-D quits both.
+- **Pieces:** `uv run sipa-client` connects to a running daemon's socket from another terminal. The
+  **desktop app** alone: `cd desktop && cargo tauri dev` (no env var needed; see `desktop/README.md`).
 - **Provider:** `provider` config = "anthropic" (default) | "local". `local` is a scaffold only.
 - **Check:** `make check` (ruff + pyright + pytest). Python pinned 3.12 via `uv`.
 - **Config:** `.env` (gitignored) holds `ANTHROPIC_API_KEY` + `VAULT_PATH` (both filled).

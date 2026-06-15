@@ -1,4 +1,4 @@
-.PHONY: check lint type test fmt run
+.PHONY: check lint type test fmt run dev
 
 check: lint type test
 
@@ -16,3 +16,6 @@ fmt:
 
 run:
 	uv run sipa
+
+dev:
+	./scripts/dev.sh
