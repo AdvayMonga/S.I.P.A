@@ -77,26 +77,42 @@ def _make_fire_due(host: MCPHost):
     return fire_due
 
 
-async def _resume_session(convo: Conversation, host: MCPHost) -> None:
-    """Warm start: seed the rolling summary with the most recent session episode."""
+_SESSION_KEY = "session-summary"  # tags the single rolling resume-state episode
+
+
+async def _session_episodes(host: MCPHost) -> list[dict]:
+    """The active session-summary episode(s) — identified by key, ignoring model-made episodes."""
     listing, is_error = await host.call_tool("memory_list", {"kind": "episode"})
     if is_error:
-        return
-    episodes = json.loads(listing)
-    if episodes:
-        convo.summary = episodes[-1]["content"]  # memory_list is ordered oldest→newest
+        return []
+    return [e for e in json.loads(listing) if e.get("keys") == _SESSION_KEY]
+
+
+async def _resume_session(convo: Conversation, host: MCPHost) -> None:
+    """Warm start: seed the rolling summary from the (single) session-summary episode."""
+    sessions = await _session_episodes(host)
+    if sessions:
+        convo.summary = sessions[-1]["content"]
         print("resumed from last session.")
 
 
 async def _persist_session(convo: Conversation, provider: ModelProvider, host: MCPHost) -> None:
-    """On shutdown, distill the session into a durable memory episode (resume warm next time)."""
+    """On shutdown, distill the session — superseding the one session-summary entry, not piling up
+    new episodes (each already folds the prior summary, so old ones are redundant)."""
     if not convo.messages:
         return
     try:
         summary = await finalize_summary(convo, provider)
-        if summary:
-            await host.call_tool("memory_remember", {"content": summary, "kind": "episode"})
-            print("session saved.")
+        if not summary:
+            return
+        existing = await _session_episodes(host)
+        if existing:
+            await host.call_tool("memory_update", {"id": existing[-1]["id"], "content": summary})
+        else:
+            await host.call_tool(
+                "memory_remember", {"content": summary, "kind": "episode", "keys": _SESSION_KEY}
+            )
+        print("session saved.")
     except Exception as exc:  # never let a bad save block exit
         print(f"[warn] could not save session: {exc}")
 

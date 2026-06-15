@@ -241,12 +241,14 @@ icons) + persistent connection deferred.
 
 ## M11: session-summary persistence — DONE (2026-06-15)
 
-On shutdown `_persist_session` distills the session (`finalize_summary`) into a memory `episode`; on
-startup `_resume_session` seeds `Conversation.summary` from the latest episode → resume warm. Skips
-empty sessions; bad saves never block exit.
+On shutdown `_persist_session` distills the session (`finalize_summary`) and **supersedes a single**
+session-summary episode (keyed `session-summary`) — each summary already folds the prior, so old
+ones are redundant; we keep exactly one active (no accumulation, no window to tune). On startup
+`_resume_session` seeds `Conversation.summary` from it → resume warm. Skips empty sessions, ignores
+model-made episodes, bad saves never block exit.
 
 ## Later (not started)
 
 Token budgeting/cost rollups, graph expansion, incremental/mtime reindex, memory's own local-only
-git, wiring `LocalProvider` to a real runtime, episode growth/pruning over many sessions
-(`BACKLOG.md`).
+git, wiring `LocalProvider` to a real runtime, and — only if independent per-session episodes are
+added later — relevance/decay-based pruning of those (`BACKLOG.md`).
