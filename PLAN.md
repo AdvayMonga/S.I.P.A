@@ -233,8 +233,14 @@ wall-clock time (not just on-open). Realizes VISION §10 "Daemon + agent core" +
 `make_provider(settings)` picks by `provider` config ("anthropic" | "local"). `LocalProvider` is a
 scaffold (raises `NotImplementedError`) — the seam is reserved, not wired to a runtime yet.
 
+## M10: basic desktop app — DONE (2026-06-14)
+
+Extremely basic Tauri v2 shell in `desktop/`: chat UI → `ask` command → daemon Unix socket. Compiles
+(`cargo check`). Design: `design/desktop.md`. Telegram dropped per user. Production bundling (real
+icons) + persistent connection deferred.
+
 ## Later (not started)
 
-**Desktop app** (Tauri — needs toolchain/product decisions), **Telegram** (needs a bot token),
-**local model option**. Graph expansion, incremental/mtime reindex, memory's own local-only git
-deferred (`BACKLOG.md`).
+Token budgeting/cost rollups, session-summary persistence across restarts, graph expansion,
+incremental/mtime reindex, memory's own local-only git, wiring `LocalProvider` to a real runtime
+(`BACKLOG.md`).

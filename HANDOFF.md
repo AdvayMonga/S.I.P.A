@@ -11,7 +11,7 @@ server; the core (`src/bot`) only routes turns and spawns servers, never imports
 `VISION.md`. The self-improving auto-builder (`siloop.md` etc.) is **not built** — built by hand
 only after the bot works (bot → loop → autonomy).
 
-## Status: M0–M8 done, all on GitHub
+## Status: M0–M10 done, all on GitHub
 
 - **M0** — loop: terminal → Claude → MCP host → vault. Live-verified.
 - **M1** — Obsidian server: 10 `vault_` tools + atomic writes + frontmatter validation + vault git.
@@ -36,9 +36,13 @@ only after the bot works (bot → loop → autonomy).
   fed by sources — `StdinSource` (REPL), `SocketSource` (Unix socket, external clients via
   `sipa-client`), `TimerSource` (wall-clock fires due scheduled tasks; on-open once at startup).
   Per-call token usage logged to `sipa.cost`.
+- **M9** — local model option: `make_provider(settings)` picks by `provider` config; `LocalProvider`
+  is a scaffold (raises `NotImplementedError`), seam reserved, not wired to a runtime.
+- **M10** — basic desktop: Tauri v2 shell in `desktop/` (chat UI → `ask` → daemon socket). Compiles.
 - **Refactor** — `servers/` at repo root; shared infra extracted to `vaultfs` + `embedding`.
 
-`make check` green: ruff + pyright + **62 tests**.
+`make check` green: ruff + pyright + **65 tests**. (`desktop/` is Rust — built via `cargo`, not in
+`make check`.)
 
 ## Layout
 
@@ -56,9 +60,10 @@ servers/       capabilities (independent MCP processes, spawned by the host):
   scheduler/     recurring-task store (vault note) + tools
   vault_search/  chunk, index (hybrid RRF), server
   memory/        store (profile+recall tiers, one SQLite table) + 9 memory_ tools
+desktop/       basic Tauri v2 app (Rust shell + static chat UI) → daemon socket. Outside the pkg.
 tests/
 data/          index.db, vault_search.db, scheduler_state.json (rebuildable) + memory.db
-               (SOURCE OF TRUTH, not rebuildable). All gitignored.
+               (SOURCE OF TRUTH, not rebuildable) + sipa.sock. All gitignored.
 ```
 
 Four servers run per session: obsidian, scheduler, vault_search, memory → 25 aggregated tools.
@@ -69,7 +74,9 @@ Four servers run per session: obsidian, scheduler, vault_search, memory → 25 a
   (`data/sipa.sock`), starts the wall-clock timer (fires due scheduled tasks; on-open at startup),
   and gives you the terminal REPL. `Ctrl-D` exits. First run downloads the ~50MB embedding model.
 - **External client:** `uv run sipa-client` connects to a running daemon's socket from another
-  terminal (the path desktop/Telegram front-ends will reuse).
+  terminal. The **desktop app**: `cd desktop && SIPA_SOCKET=$(cd .. && pwd)/data/sipa.sock cargo
+  tauri dev` (see `desktop/README.md`).
+- **Provider:** `provider` config = "anthropic" (default) | "local". `local` is a scaffold only.
 - **Check:** `make check` (ruff + pyright + pytest). Python pinned 3.12 via `uv`.
 - **Config:** `.env` (gitignored) holds `ANTHROPIC_API_KEY` + `VAULT_PATH` (both filled).
   Default model `claude-opus-4-8`, thinking off.
@@ -103,14 +110,9 @@ Four servers run per session: obsidian, scheduler, vault_search, memory → 25 a
 
 ## Next (see `PLAN.md`)
 
-Needs user input before building:
-1. **Desktop app** (Tauri) — toolchain (Rust+Node) + product decisions. The socket (`sipa-client`)
-   is the seam it plugs into.
-2. **Telegram source** — needs a bot token from the user. Then it's just another `Source`.
-3. **Local model option** — which model/runtime.
-
-Buildable without input: token budgeting/cost rollups, session-summary persistence across restarts
-(distill to a memory `episode` on shutdown), graph one-hop, incremental reindex — all in `BACKLOG.md`.
+Buildable without input: session-summary persistence across restarts (distill to a memory `episode`
+on shutdown), token budgeting/cost rollups, graph one-hop, incremental reindex, wiring
+`LocalProvider` to a real runtime. All in `BACKLOG.md`. (Telegram dropped per user.)
 
 ## Gotchas
 

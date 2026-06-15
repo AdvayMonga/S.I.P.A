@@ -15,6 +15,7 @@ Status: `planned` · `building` · `built`.
 | Context assembly v2 | built | [context-assembly.md](design/context-assembly.md) | Per-turn pushed retrieval: auto-inject profile + top-k memory + top-k vault (provenance-tagged, one char budget) into the system prompt. Retrieval goes agentic → automatic. |
 | Conversation memory | built | [conversation-memory.md](design/conversation-memory.md) | The within-session HANDOFF: `Conversation` (messages + rolling summary); compaction folds old turns into the summary when the window grows; summary enriches retrieval + is injected. |
 | Daemon + event router | built | [daemon.md](design/daemon.md) | Always-on core: one serialized router (queue + `Conversation`) fed by event sources — stdin (REPL), Unix socket (external clients), wall-clock timer (fires due scheduled tasks). Token/cost logging. |
+| Desktop app | built (basic) | [desktop.md](design/desktop.md) | Extremely basic Tauri v2 shell: chat UI → `ask` command → daemon Unix socket. The front-end seam. |
 
 ---
 
