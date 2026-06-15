@@ -223,3 +223,23 @@ would re-fire them every timer tick. So `_make_fire_due` fires on-open tasks onl
 it with `except*`. Headless deployments simply omit `StdinSource`.
 
 **Deferred:** token budgeting/cost rollups and session-summary persistence (`BACKLOG.md`).
+
+## 2026-06-15 — Auto-builder (siloop) will run on the Claude Max subscription, not the API
+
+**Decision.** When the self-improving loop / auto-builder (`siloop`) is built, its coding executor
+routes through **Claude Code / the Claude Agent SDK authenticated with the user's Max subscription**
+(OAuth via `claude setup-token`), not the pay-per-token API. SIPA's conversational turns stay on the
+API (`AnthropicProvider`) for now.
+
+**Why.** The raw API can't draw on a subscription — it's always separately metered. But Pro/Max
+plans get a monthly Agent SDK credit covering the Agent SDK, `claude -p`, and third-party apps built
+on it. Coding/agentic work is exactly what Claude Code is for and is the expensive, bursty load — so
+billing it to the subscription instead of API tokens is the real cost win, landing where the spend
+actually is.
+
+**Caveats to honor when building it.** (1) If `ANTHROPIC_API_KEY` is set in that environment it
+*overrides* the subscription and silently drains API balance — keep the two paths' envs separate.
+(2) The subscription credit is finite with no fine-grained spend controls, so the loop cap + cost
+visibility matter more there. (3) Moving SIPA's *chat* turns onto the Agent SDK is possible (the
+credit covers third-party apps) but is a re-architecture — the Agent SDK runs its own agent loop —
+so it's deferred, not a drop-in for our hand-built loop. Sources: Claude Code + Agent SDK auth docs.
