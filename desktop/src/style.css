@@ -1,0 +1,21 @@
+:root {
+  font-family: -apple-system, system-ui, sans-serif;
+  color: #e8e8e8;
+  background: #1b1b1d;
+}
+
+body {
+  margin: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+h1 {
+  font-size: 1.1rem;
+  margin: 0;
+}
+
+main {
+  padding: 1rem;
+}

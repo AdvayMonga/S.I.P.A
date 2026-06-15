@@ -8,6 +8,10 @@
 # no remote backup (design/memory-server.md). Gitignored for privacy; relies on local backup.
 data/
 
+# Tauri desktop app
+desktop/src-tauri/target/
+desktop/src-tauri/gen/
+
 # Python
 __pycache__/
 *.py[cod]
