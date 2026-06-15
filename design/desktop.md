@@ -13,13 +13,13 @@ webview (src/) ──invoke("ask", {message})──▶ Rust (src-tauri/lib.rs) �
   composer; `main.js` calls `invoke("ask", …)` via the global `window.__TAURI__` (enabled by
   `app.withGlobalTauri`). Served statically through `frontendDist: "../src"`.
 - **Backend** (`desktop/src-tauri/`): the `ask(message)` command opens a `UnixStream` to the socket
-  (`SIPA_SOCKET` env, default `data/sipa.sock`), writes the line, returns the reply line. One
+  (`SIPA_SOCKET` env, default `~/.sipa/sipa.sock`), writes the line, returns the reply line. One
   connection per message — the daemon shares one `Conversation` across connections, so continuity
   holds regardless.
 
 ## Run
 
-Daemon first (`make run`), then `cd desktop && SIPA_SOCKET=…/data/sipa.sock cargo tauri dev`. See
+Daemon first (`make run`), then `cd desktop && cargo tauri dev` (both default to `~/.sipa/sipa.sock`). See
 `desktop/README.md`.
 
 ## Scope / deferred

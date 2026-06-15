@@ -26,7 +26,7 @@ sources ──submit(text, respond)──▶  Daemon queue  ──▶ router ─
 
 - **StdinSource** — the terminal REPL as a source, so `make run` is unchanged. EOF raises
   `ShutdownSignal`, which propagates through the TaskGroup and stops the daemon cleanly.
-- **SocketSource** — `asyncio.start_unix_server` at `settings.socket_path` (`data/sipa.sock`).
+- **SocketSource** — `asyncio.start_unix_server` at `settings.socket_path` (`~/.sipa/sipa.sock`).
   Newline-delimited request/reply per connection; clears a stale socket on start. `client.py`
   (`sipa-client`) is the reference client and the path the desktop/Telegram front-ends will reuse.
 - **TimerSource** — fires `on_tick` immediately (startup catch-up) then every `timer_interval`

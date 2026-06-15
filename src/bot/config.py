@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     vault_search_db_path: Path = Path("data/vault_search.db")
     scheduler_state_path: Path = Path("data/scheduler_state.json")
     memory_db_path: Path = Path("data/memory.db")
-    socket_path: Path = Path("data/sipa.sock")
+    socket_path: Path = Path.home() / ".sipa" / "sipa.sock"  # fixed abs path; cwd-independent
     timer_interval: float = 60.0  # seconds between wall-clock scheduler checks
     provider: str = "anthropic"  # "anthropic" | "local" (local is a scaffold, not wired yet)
     model: str = "claude-opus-4-8"

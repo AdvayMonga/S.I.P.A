@@ -4,14 +4,15 @@ An extremely basic Tauri v2 shell that talks to the running daemon over its Unix
 
 ## Run
 
-1. Start the daemon from the repo root: `make run` (binds `data/sipa.sock`).
-2. Point the app at that socket and launch dev:
+1. Start the daemon from the repo root: `make run` (binds `~/.sipa/sipa.sock`).
+2. Launch the app:
    ```sh
    cd desktop
-   SIPA_SOCKET="$(cd .. && pwd)/data/sipa.sock" cargo tauri dev
+   cargo tauri dev
    ```
 
-`SIPA_SOCKET` overrides the socket path (defaults to `data/sipa.sock` relative to cwd).
+Both default to `~/.sipa/sipa.sock`, so no configuration is needed. `SIPA_SOCKET` overrides the
+socket path if you want a different location.
 
 ## Layout
 

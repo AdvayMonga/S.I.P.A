@@ -67,19 +67,22 @@ servers/       capabilities (independent MCP processes, spawned by the host):
 desktop/       basic Tauri v2 app (Rust shell + static chat UI) → daemon socket. Outside the pkg.
 tests/
 data/          index.db, vault_search.db, scheduler_state.json (rebuildable) + memory.db
-               (SOURCE OF TRUTH, not rebuildable) + sipa.sock. All gitignored.
+               (SOURCE OF TRUTH, not rebuildable). All gitignored.
 ```
+
+The daemon's Unix socket lives at `~/.sipa/sipa.sock` (fixed abs path so cross-process clients —
+desktop app, `sipa-client` — find it without knowing the repo cwd; `SIPA_SOCKET` overrides).
 
 Four servers run per session: obsidian, scheduler, vault_search, memory → 25 aggregated tools.
 
 ## How to run / verify
 
-- **Run:** `make run` (= `uv run sipa`) starts the **daemon**: it binds a Unix socket
-  (`data/sipa.sock`), starts the wall-clock timer (fires due scheduled tasks; on-open at startup),
+- **Run:** `make run` (= `uv run sipa`) starts the **daemon**: it binds the Unix socket
+  (`~/.sipa/sipa.sock`), starts the wall-clock timer (fires due scheduled tasks; on-open at startup),
   and gives you the terminal REPL. `Ctrl-D` exits. First run downloads the ~50MB embedding model.
 - **External client:** `uv run sipa-client` connects to a running daemon's socket from another
-  terminal. The **desktop app**: `cd desktop && SIPA_SOCKET=$(cd .. && pwd)/data/sipa.sock cargo
-  tauri dev` (see `desktop/README.md`).
+  terminal. The **desktop app**: `cd desktop && cargo tauri dev` (no env var needed; see
+  `desktop/README.md`).
 - **Provider:** `provider` config = "anthropic" (default) | "local". `local` is a scaffold only.
 - **Check:** `make check` (ruff + pyright + pytest). Python pinned 3.12 via `uv`.
 - **Config:** `.env` (gitignored) holds `ANTHROPIC_API_KEY` + `VAULT_PATH` (both filled).

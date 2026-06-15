@@ -2,7 +2,10 @@ use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
 
 fn socket_path() -> String {
-    std::env::var("SIPA_SOCKET").unwrap_or_else(|_| "data/sipa.sock".to_string())
+    std::env::var("SIPA_SOCKET").unwrap_or_else(|_| {
+        let home = std::env::var("HOME").unwrap_or_default();
+        format!("{home}/.sipa/sipa.sock")
+    })
 }
 
 /// Send one message to the running daemon over its Unix socket; return the reply line.
