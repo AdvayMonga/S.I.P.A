@@ -1,7 +1,7 @@
 # CLAUDE.md
 
 Build-time guidance for working in this repo. This file is **advisory** — it nudges, it
-doesn't enforce. The human reviews every diff; that review is the enforcement.
+doesn't enforce.
 
 > **Project:** S.I.P.A. — a personal AI bot that grows over time. An always-on local daemon
 > where every capability is an MCP server, with an Obsidian vault as durable memory and a
@@ -48,8 +48,8 @@ _Set at the start of the Foundation milestone, on 2026-06-13. Valid until revise
 
 - **Plan before building.** When you ask me to build something, I first scope it in `PLAN.md`
   (current task + ordered steps), adding a `design/<feature>.md` if it's a large feature —
-  surfacing assumptions and any two-sided calls — *then* code. Small slices: `PLAN.md` only. You
-  see the plan before code lands.
+  surfacing assumptions and any two-sided calls — *then* code. Small slices: `PLAN.md` only. 
+  Dont have to show me the plan just go about it.
 - **One feature, one commit.** Each capability (per `VISION.md` §10 build order) lands on its
   own commit before the next starts. No "milestone everything" mega commit. Better smaller than
   larger; name each commit with `feat`/`fix`/the appropriate prefix and keep the message concise.
