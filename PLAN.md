@@ -167,9 +167,41 @@ smoke-tested (remember → profile/recall/open tasks ranked by meaning; list sho
 Tool-driven for M5 (no auto profile injection — that's Context-assembly v2, §5.9); the store is the
 **source of truth**, persistent (no reindex on start), gitignored (local-only, no remote backup).
 
-## Next (not started)
+## M6: context assembly v2 (§5.9) — DONE (2026-06-14)
 
-The **daemon + event router + true timer source** (always-on, real proactive triggers), then
-**Context assembly v2** (§5.9 — always-inject profile + fuse memory/vault under one token budget).
-Graph expansion (`expand_context`), incremental/mtime-keyed reindex, and memory's own local-only
-git are deferred (`BACKLOG.md`).
+**Status: done and verified.** `src/bot/context.py` `assemble_context` wired into `run_turn` (built
+once per turn, reused across tool-use iterations). End-to-end against real servers: one message
+("what should I focus on this summer?") auto-pulled profile + a meaning-matched memory fact + the
+vault note, each provenance-tagged, into the system prompt — no tool call. Char budget profile-first
+then remainder split; failing/empty sources skipped; all-empty → base SYSTEM unchanged. `make check`
+green — 53 tests.
+
+**Goal.** Make retrieval automatic instead of agentic: per turn, inject the profile + top-k memory +
+top-k vault notes (provenance-tagged, one token cap) into the system prompt, so a fresh session has
+continuity from memory and answers grounded in notes — without the user calling a tool. This is the
+highest-leverage step toward the "feel like a real chatbot" north-star. Next in VISION §10's
+dependency order (deps memory + semantic index, both built). Design: `design/context-assembly.md`.
+
+**Scope — build in this order:**
+
+1. **`src/bot/context.py`** — `assemble_context(host, user_message, base_system) -> str`. Calls
+   `memory_get_profile`, `memory_recall(query, k)`, `semantic_search(query, k)` over MCP; formats
+   with provenance (`memory#id`, `vault: path › heading`); allocates one char budget across sources;
+   degrades gracefully (skip a failing/empty section; all-empty → base SYSTEM unchanged).
+2. **Wire into the loop** — `run_turn` calls `assemble_context` once per turn (on the user message),
+   reuses the assembled system across the turn's tool-use iterations. Search tools stay available.
+3. **Tests** — `assemble_context` against a fake host: profile always present, sections formatted,
+   budget truncates, empty stores → base, failing retrieval skipped.
+
+**Done when.** Fresh REPL + a fact in memory + a note in the vault → a grounded, cited answer with no
+tool call by the user. `make check` green with the unit tests above.
+
+**Not in M6** (deferred → `BACKLOG.md`): graph one-hop (`expand_context`), real tokenizer budget,
+static/dynamic prompt-cache split, transcript compaction + session-summary-on-close (those distill
+the *conversation*; M6 assembles the *stores*).
+
+## Later (not started)
+
+The **daemon + event router + true timer source** (always-on, real proactive triggers + desktop/
+Telegram). Graph expansion, incremental/mtime-keyed reindex, and memory's own local-only git are
+deferred (`BACKLOG.md`).

@@ -80,3 +80,12 @@ the bot actually knows you across sessions — revisit when building this milest
 
 Deferred deliberately: latency budgets, ANN/HNSW, multi-tenant permission-filtered search — these
 are operational-scale taxes that don't bite a single-user local bot. Revisit only if something hurts.
+
+## 2026-06-14 — Rolling conversation summary (M6 follow-up)
+
+Approved during M6 planning as "a good idea for later." Maintain a short rolling summary of the
+conversation and use it to enrich the retrieval query in `assemble_context` (so follow-ups like
+"and the next step?" retrieve against conversation state, not just the bare message). Pairs with the
+deferred transcript-compaction work (the within-session "HANDOFF") and overlaps the existing
+"query transformation" bullet above — implement them together. M6 ships with the raw user message as
+the query; this is the first refinement once it's in use.

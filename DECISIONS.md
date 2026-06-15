@@ -167,3 +167,19 @@ it is wasted compute. `memory_recall` is vector-only over recall entries (design
 reach it — `forget` deletes and `update` supersedes, neither marks done. Without a tool, `done`
 would be unreachable dead state. `memory_complete_task` is the minimal realization of the status the
 schema already requires; it drops a task from `list_open_tasks` while keeping it as history.
+
+## 2026-06-14 — Retrieval becomes pushed; the system prompt is now dynamic per turn
+
+**Decision.** Context assembly v2 (M6, §5.9) flips retrieval from **agentic** (model chooses to call
+`memory_recall`/`semantic_search`) to **pushed**: `run_turn` calls `assemble_context` once per turn
+and injects profile + top-k memory + top-k vault into the system prompt. The search tools stay
+available for deep dives. So the system prompt is **rebuilt every turn** (it keys off the user
+message) — not the former static constant.
+
+**Why.** This is the piece that makes the bot *feel* like it knows you — the relevant slice of the
+durable stores lands in working memory automatically, no tool call needed (the 3-layer-memory glue).
+
+**Consequence to know.** A per-turn dynamic system prompt is intentional, not a bug — don't "fix" it
+back to a constant. It does defeat Anthropic prompt caching on that block; base SYSTEM is small so
+the cost is minor, and a static/dynamic cache split is deferred (`BACKLOG.md`). Budget is char-based
+(profile-first, remainder split memory/vault); a real tokenizer is the later upgrade.

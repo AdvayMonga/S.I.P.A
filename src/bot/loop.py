@@ -4,6 +4,7 @@ from typing import Any, cast
 
 from anthropic.types import TextBlock, ToolUseBlock
 
+from .context import assemble_context
 from .host import MCPHost
 from .provider import ModelProvider
 
@@ -22,10 +23,12 @@ async def run_turn(
     host: MCPHost,
 ) -> str:
     """Run one user turn to completion, mutating `history` in place."""
+    # Assemble context once on the user message; reuse it across this turn's tool-use iterations.
+    system = await assemble_context(host, user_message, SYSTEM)
     history.append({"role": "user", "content": user_message})
     while True:
         response = await provider.generate(
-            system=SYSTEM, messages=history, tools=host.tools_for_model()
+            system=system, messages=history, tools=host.tools_for_model()
         )
         history.append({"role": "assistant", "content": response.content})
 

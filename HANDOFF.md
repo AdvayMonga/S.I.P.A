@@ -11,7 +11,7 @@ server; the core (`src/bot`) only routes turns and spawns servers, never imports
 `VISION.md`. The self-improving auto-builder (`siloop.md` etc.) is **not built** — built by hand
 only after the bot works (bot → loop → autonomy).
 
-## Status: M0–M5 done, all on GitHub
+## Status: M0–M6 done, all on GitHub
 
 - **M0** — loop: terminal → Claude → MCP host → vault. Live-verified.
 - **M1** — Obsidian server: 10 `vault_` tools + atomic writes + frontmatter validation + vault git.
@@ -25,14 +25,19 @@ only after the bot works (bot → loop → autonomy).
   profile returned wholesale under a char cap; `memory_consolidate` dedups by `keys` + evicts. 9
   `memory_` tools (incl. `memory_list` for auditing — the read tool a future Tauri inspector
   renders), tool-driven. **Source of truth** (persistent, not reindexed), gitignored.
+- **M6** — context assembly v2 (§5.9): retrieval flipped agentic → **pushed**. `src/bot/context.py`
+  `assemble_context` runs once per turn, injecting profile + top-k memory + top-k vault notes
+  (provenance-tagged, one char budget) into the system prompt. A fresh session now *knows* you with
+  no tool call. Search tools still available for deep dives.
 - **Refactor** — `servers/` at repo root; shared infra extracted to `vaultfs` + `embedding`.
 
-`make check` green: ruff + pyright + **47 tests**.
+`make check` green: ruff + pyright + **53 tests**.
 
 ## Layout
 
 ```
-src/bot/       core: config, cli (+ on-open scheduler trigger), host (multi-server), loop, provider
+src/bot/       core: config, cli (+ on-open scheduler trigger), host (multi-server), loop,
+               context (per-turn pushed retrieval → system prompt), provider
 src/vaultfs/   SHARED infra: vault.py (path-safe fs ops), vault_git.py (local git).
 src/embedding/ SHARED infra: Embedder protocol + FastEmbedEmbedder (bge-small). vault_search +
                memory depend downward on it. bot (router) never imports shared infra; no server
@@ -67,10 +72,12 @@ Four servers run per session: obsidian, scheduler, vault_search, memory → 25 a
 
 ## Context not obvious from code
 
-- **Memory is tool-driven, not auto-injected** — the model calls `memory_get_profile`/
-  `memory_recall`/`memory_remember` like it calls `vault_search`. Conversation history is still
-  per-REPL-run; always-injecting the profile + fusing memory/vault under one token budget is
-  Context-assembly v2 (§5.9). Memory is a durable *store* now, but nothing assembles it per-turn yet.
+- **Retrieval is pushed, not just agentic (as of M6)** — every turn, `assemble_context` injects the
+  profile + top-k memory + top-k vault into the system prompt automatically (the model no longer
+  needs to call a tool to recall). Writing memory is still tool-driven (`memory_remember`), and the
+  search tools remain for deep dives. **Conversation history is still per-REPL-run** — durable
+  continuity comes from the memory store + vault, not the chat log (no transcript persistence;
+  rolling-summary + compaction are deferred → `BACKLOG.md`).
 - **Retrieval is tool-driven** — model calls `vault_search_text` (keyword) / `semantic_search`
   (meaning) → reads → cites. Automatic context assembly (§5.9) is later.
 - **Scheduling is on-open only** — true unattended wall-clock firing needs the daemon's timer
@@ -79,10 +86,11 @@ Four servers run per session: obsidian, scheduler, vault_search, memory → 25 a
   `vaultfs` package; servers depend downward on it, none import each other. See `DECISIONS.md`.
 - Why-decisions: `DECISIONS.md`; deferred scope: `BACKLOG.md`; per-feature designs: `design/`.
 
-## Next (see `PLAN.md` "Next")
+## Next (see `PLAN.md` "Later")
 
-1. **Daemon + event router + timer source** — always-on, real proactive triggers + Telegram.
-2. **Context assembly v2** (§5.9) — always-inject profile + fuse memory/vault under one token budget.
+1. **Daemon + event router + timer source** — always-on, real proactive triggers + desktop/Telegram.
+2. **Rolling summary + transcript compaction** — the within-session HANDOFF (resume-after-restart,
+   enrich the retrieval query). Approved for later during M6 planning (`BACKLOG.md`).
 
 ## Gotchas
 
