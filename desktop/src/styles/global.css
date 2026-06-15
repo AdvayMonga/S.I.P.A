@@ -1,0 +1,22 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+}
+
+:root {
+  color-scheme: dark;
+  font-family: system-ui, sans-serif;
+  background: #14171c;
+  color: #e6e8eb;
+}
+
+body {
+  height: 100vh;
+}
+
+.boot {
+  height: 100vh;
+  display: grid;
+  place-items: center;
+  letter-spacing: 0.3em;
+}

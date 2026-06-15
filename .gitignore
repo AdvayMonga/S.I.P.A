@@ -11,6 +11,8 @@ data/
 # Tauri desktop app
 desktop/src-tauri/target/
 desktop/src-tauri/gen/
+desktop/node_modules/
+desktop/dist/
 
 # Python
 __pycache__/
