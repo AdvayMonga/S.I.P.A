@@ -11,6 +11,11 @@ from .config import Settings
 _cost_log = logging.getLogger("sipa.cost")
 
 
+def cost_usd(input_tokens: int, output_tokens: int, in_price: float, out_price: float) -> float:
+    """Dollar cost of a token count given per-million-token prices."""
+    return (input_tokens * in_price + output_tokens * out_price) / 1_000_000
+
+
 class ModelProvider(Protocol):
     """One call: system + history + tools -> a model response."""
 
@@ -26,6 +31,10 @@ class AnthropicProvider:
         self._client = AsyncAnthropic(api_key=settings.anthropic_api_key)
         self._model = settings.model
         self._max_tokens = settings.max_tokens
+        self._in_price = settings.input_price_per_mtok
+        self._out_price = settings.output_price_per_mtok
+        self._in_tokens = 0  # running session totals
+        self._out_tokens = 0
 
     async def generate(
         self, *, system: str, messages: list[Any], tools: list[Any]
@@ -38,7 +47,17 @@ class AnthropicProvider:
             tools=tools,
         )
         usage = message.usage
-        _cost_log.info("tokens in=%d out=%d", usage.input_tokens, usage.output_tokens)
+        self._in_tokens += usage.input_tokens
+        self._out_tokens += usage.output_tokens
+        session = cost_usd(self._in_tokens, self._out_tokens, self._in_price, self._out_price)
+        _cost_log.info(
+            "tokens in=%d out=%d | session %d/%d ≈ $%.4f",
+            usage.input_tokens,
+            usage.output_tokens,
+            self._in_tokens,
+            self._out_tokens,
+            session,
+        )
         return message
 
 

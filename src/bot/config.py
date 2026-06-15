@@ -21,3 +21,5 @@ class Settings(BaseSettings):
     provider: str = "anthropic"  # "anthropic" | "local" (local is a scaffold, not wired yet)
     model: str = "claude-opus-4-8"
     max_tokens: int = 8192
+    input_price_per_mtok: float = 5.0  # claude-opus-4-8 pricing; set to your plan/model rate
+    output_price_per_mtok: float = 25.0
