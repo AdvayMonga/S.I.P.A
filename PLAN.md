@@ -160,8 +160,9 @@ startup. `make check` green — 37 tests. `sqlite-vec` unusable (this Python can
 recall tiers split by `kind`. Recall-tier entries embedded (shared `embedding` package, extracted
 from `vault_search`); `memory_recall` is vector-only cosine over active recall entries; profile
 returned wholesale under a char cap. Mechanical `memory_consolidate` (dedup by `keys`, evict oldest
-profile over cap). 8 tools live over MCP — round-trip smoke-tested (remember → profile/recall/open
-tasks ranked by meaning). `make check` green — 47 tests. Design: `design/memory-server.md`.
+profile over cap). 9 tools live over MCP (incl. `memory_list` for auditing) — round-trip
+smoke-tested (remember → profile/recall/open tasks ranked by meaning; list shows stale history).
+`make check` green — 48 tests. Design: `design/memory-server.md`.
 
 Tool-driven for M5 (no auto profile injection — that's Context-assembly v2, §5.9); the store is the
 **source of truth**, persistent (no reindex on start), gitignored (local-only, no remote backup).

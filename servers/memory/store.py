@@ -159,6 +159,36 @@ class MemoryStore:
             for i in order
         ]
 
+    def list_entries(
+        self, tier: str | None = None, kind: str | None = None, status: str = "active"
+    ) -> list[dict[str, Any]]:
+        """Browse the store for auditing (no vec). status='all' lifts the status filter."""
+        sql = (
+            "SELECT id, tier, kind, content, keys, status, created_at, superseded_by "
+            "FROM memory"
+        )
+        clauses: list[str] = []
+        params: list[Any] = []
+        if status != "all":
+            clauses.append("status=?")
+            params.append(status)
+        if tier is not None:
+            clauses.append("tier=?")
+            params.append(tier)
+        if kind is not None:
+            clauses.append("kind=?")
+            params.append(kind)
+        if clauses:
+            sql += " WHERE " + " AND ".join(clauses)
+        sql += " ORDER BY created_at, id"
+        con = self._connect()
+        try:
+            rows = con.execute(sql, params).fetchall()
+        finally:
+            con.close()
+        cols = ("id", "tier", "kind", "content", "keys", "status", "created_at", "superseded_by")
+        return [dict(zip(cols, row, strict=True)) for row in rows]
+
     def list_open_tasks(self) -> list[dict[str, Any]]:
         """Active kind='task' entries — working memory carried across sessions."""
         con = self._connect()

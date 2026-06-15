@@ -22,8 +22,9 @@ only after the bot works (bot → loop → autonomy).
   cosine + FTS5, hybrid-fused (RRF). `semantic_search` recalls by meaning.
 - **M5** — memory server: one SQLite store (`data/memory.db`), profile + recall tiers split by
   `kind`. Recall-tier embedded (shared `embedding` package); `memory_recall` = vector-only cosine;
-  profile returned wholesale under a char cap; `memory_consolidate` dedups by `keys` + evicts. 8
-  `memory_` tools, tool-driven. **Source of truth** (persistent, not reindexed), gitignored.
+  profile returned wholesale under a char cap; `memory_consolidate` dedups by `keys` + evicts. 9
+  `memory_` tools (incl. `memory_list` for auditing — the read tool a future Tauri inspector
+  renders), tool-driven. **Source of truth** (persistent, not reindexed), gitignored.
 - **Refactor** — `servers/` at repo root; shared infra extracted to `vaultfs` + `embedding`.
 
 `make check` green: ruff + pyright + **47 tests**.
@@ -40,13 +41,13 @@ servers/       capabilities (independent MCP processes, spawned by the host):
   obsidian/      10 vault_ tools, FTS5 keyword index (obsidian-only)
   scheduler/     recurring-task store (vault note) + tools
   vault_search/  chunk, index (hybrid RRF), server
-  memory/        store (profile+recall tiers, one SQLite table) + 8 memory_ tools
+  memory/        store (profile+recall tiers, one SQLite table) + 9 memory_ tools
 tests/
 data/          index.db, vault_search.db, scheduler_state.json (rebuildable) + memory.db
                (SOURCE OF TRUTH, not rebuildable). All gitignored.
 ```
 
-Four servers run per session: obsidian, scheduler, vault_search, memory → 24 aggregated tools.
+Four servers run per session: obsidian, scheduler, vault_search, memory → 25 aggregated tools.
 
 ## How to run / verify
 

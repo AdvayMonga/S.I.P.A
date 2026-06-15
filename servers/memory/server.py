@@ -38,6 +38,15 @@ def memory_recall(query: str, k: int = 5, kind: str = "") -> str:
 
 
 @mcp.tool()
+def memory_list(tier: str = "", kind: str = "", status: str = "active") -> str:
+    """Audit the store: list entries (no vectors), filtered by tier/kind/status. Returns JSON.
+    status='all' shows everything incl. stale/deleted history; '' tier/kind means no filter."""
+    return json.dumps(
+        _store.list_entries(tier=tier or None, kind=kind or None, status=status)
+    )
+
+
+@mcp.tool()
 def memory_list_open_tasks() -> str:
     """Open tasks carried across sessions (working memory). Returns JSON."""
     return json.dumps(_store.list_open_tasks())

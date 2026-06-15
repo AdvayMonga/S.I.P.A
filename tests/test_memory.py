@@ -92,6 +92,25 @@ def test_forget(tmp_path: Path) -> None:
     assert store.forget(fid) is False  # already deleted
 
 
+def test_list_entries_filters_and_history(tmp_path: Path) -> None:
+    store = _store(tmp_path)
+    store.remember("likes terse replies", "preference", NOW)
+    fid = store.remember("old fact", "fact", NOW)
+    store.update(fid, "new fact", NOW)  # fid → stale, new active
+
+    active = store.list_entries()
+    assert {e["content"] for e in active} == {"likes terse replies", "new fact"}
+    assert all("vec" not in e for e in active)  # vectors never exposed
+
+    assert {e["content"] for e in store.list_entries(tier="profile")} == {"likes terse replies"}
+    assert {e["content"] for e in store.list_entries(kind="fact")} == {"new fact"}
+
+    stale = store.list_entries(status="stale")
+    assert [e["content"] for e in stale] == ["old fact"]
+    assert stale[0]["superseded_by"] is not None
+    assert len(store.list_entries(status="all")) == 3  # full history visible
+
+
 def test_consolidate_dedup_by_keys(tmp_path: Path) -> None:
     store = _store(tmp_path)
     a = store.remember("address v1", "fact", datetime(2026, 6, 1), keys="home-address")

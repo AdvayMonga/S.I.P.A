@@ -38,6 +38,7 @@ Recall is **vector-only** for M5 (entries are short distilled facts). Hybrid vec
 |---|---|---|
 | `memory_get_profile()` | profile | concat active profile entries; enforce a char cap |
 | `memory_recall(query, k, kind?)` | recall | embed query → cosine → top-k `{id, kind, content, score}` |
+| `memory_list(tier?, kind?, status?)` | both | audit the store: list entries (no vec), filtered; `status='all'` shows stale/deleted history. The read tool the Tauri inspector renders. |
 | `memory_list_open_tasks()` | recall | active `kind='task'`, not done — working memory across sessions |
 | `memory_remember(content, kind, keys?)` | both | distill a durable entry; tier inferred from kind |
 | `memory_update(id, content)` | both | **supersede**: write a new entry, mark the old stale (keeps history) |
