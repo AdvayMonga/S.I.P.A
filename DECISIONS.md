@@ -183,3 +183,22 @@ durable stores lands in working memory automatically, no tool call needed (the 3
 back to a constant. It does defeat Anthropic prompt caching on that block; base SYSTEM is small so
 the cost is minor, and a static/dynamic cache split is deferred (`BACKLOG.md`). Budget is char-based
 (profile-first, remainder split memory/vault); a real tokenizer is the later upgrade.
+
+## 2026-06-14 — Conversation object replaces the raw history list; in-session compaction
+
+**Decision.** `run_turn` now takes a `Conversation` (messages + rolling `summary`) instead of a raw
+`list`. When real user turns exceed a threshold, `maybe_compact` LLM-summarizes the older turns into
+`summary` and drops them, keeping the most recent turns verbatim. The summary enriches the retrieval
+query and is injected as `# Conversation so far`.
+
+**Why.** Bounds the context window for long sessions (what Claude Code does internally) and resolves
+follow-ups ("the next step?") by retrieving against conversation state. It's layers 1–2 of the
+3-layer memory model (working memory + compaction); M6 was layer 3 (the stores).
+
+**Pairing-safe cut.** Anthropic requires each `tool_result` to follow its `tool_use`. Compaction
+cuts only at *real user turns* (role user, string content), so the kept window never starts on an
+orphaned `tool_result`. Tested.
+
+**Scope line.** The summary lives in memory for the session only — persisting it across process
+restarts (and optionally distilling it into the memory store as an `episode`) needs a real session
+lifecycle and belongs with the daemon (`BACKLOG.md`).

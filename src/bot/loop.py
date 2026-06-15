@@ -5,6 +5,7 @@ from typing import Any, cast
 from anthropic.types import TextBlock, ToolUseBlock
 
 from .context import assemble_context
+from .conversation import Conversation, maybe_compact
 from .host import MCPHost
 from .provider import ModelProvider
 
@@ -17,20 +18,26 @@ SYSTEM = (
 
 
 async def run_turn(
-    history: list[Any],
+    convo: Conversation,
     user_message: str,
     provider: ModelProvider,
     host: MCPHost,
 ) -> str:
-    """Run one user turn to completion, mutating `history` in place."""
-    # Assemble context once on the user message; reuse it across this turn's tool-use iterations.
-    system = await assemble_context(host, user_message, SYSTEM)
-    history.append({"role": "user", "content": user_message})
+    """Run one user turn to completion, mutating `convo` in place."""
+    await maybe_compact(convo, provider)  # bound the window before we build the turn
+    # Enrich the retrieval query with the rolling summary so follow-ups retrieve against state.
+    query = f"{convo.summary[-500:]} {user_message}".strip() if convo.summary else user_message
+    # Assemble context once on the query; reuse it across this turn's tool-use iterations.
+    system = await assemble_context(host, query, SYSTEM)
+    if convo.summary:
+        system = f"{system}\n\n# Conversation so far\n{convo.summary}"
+
+    convo.messages.append({"role": "user", "content": user_message})
     while True:
         response = await provider.generate(
-            system=system, messages=history, tools=host.tools_for_model()
+            system=system, messages=convo.messages, tools=host.tools_for_model()
         )
-        history.append({"role": "assistant", "content": response.content})
+        convo.messages.append({"role": "assistant", "content": response.content})
 
         if response.stop_reason != "tool_use":
             return "".join(
@@ -51,4 +58,4 @@ async def run_turn(
                     "is_error": is_error,
                 }
             )
-        history.append({"role": "user", "content": tool_results})
+        convo.messages.append({"role": "user", "content": tool_results})

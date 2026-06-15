@@ -13,6 +13,7 @@ Status: `planned` · `building` · `built`.
 | Semantic index | built | [semantic-index.md](design/semantic-index.md) | `vault_search` server: chunk + embed + hybrid (vector + FTS5) RRF recall by meaning. |
 | Memory server | built | [memory-server.md](design/memory-server.md) | `memory` server: profile + recall tiers in one SQLite store; vector-only recall; mechanical consolidation. Separate from the vault. |
 | Context assembly v2 | built | [context-assembly.md](design/context-assembly.md) | Per-turn pushed retrieval: auto-inject profile + top-k memory + top-k vault (provenance-tagged, one char budget) into the system prompt. Retrieval goes agentic → automatic. |
+| Conversation memory | built | [conversation-memory.md](design/conversation-memory.md) | The within-session HANDOFF: `Conversation` (messages + rolling summary); compaction folds old turns into the summary when the window grows; summary enriches retrieval + is injected. |
 
 ---
 

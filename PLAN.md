@@ -200,8 +200,28 @@ tool call by the user. `make check` green with the unit tests above.
 static/dynamic prompt-cache split, transcript compaction + session-summary-on-close (those distill
 the *conversation*; M6 assembles the *stores*).
 
+## M7: conversation memory (rolling summary + compaction) — DONE (2026-06-14)
+
+**Status: done and verified.** `src/bot/conversation.py`: `Conversation` (messages + rolling
+summary) + `maybe_compact` folds old turns into the summary (LLM call) when real user turns exceed
+`COMPACT_AFTER_TURNS=12`, keeping `KEEP_RECENT_TURNS=4` verbatim; cut lands only on a real user turn
+(tool-pairing safe). `run_turn` takes a `Conversation`, compacts first, enriches the retrieval query
+with the summary tail, and injects `# Conversation so far`. `cli` holds one `Conversation` (REPL +
+scheduled tasks share it). `make check` green — 57 tests. Design: `design/conversation-memory.md`.
+
+**Not in M7** (deferred → `BACKLOG.md`): session-summary persistence / resume-after-restart (needs a
+real session lifecycle → daemon); distilling the summary into the memory store as an `episode`;
+real-tokenizer thresholds.
+
+## M8: daemon + event router + timer source — IN PROGRESS
+
+**Goal.** Turn the REPL into an always-on daemon: a long-lived process holding the host + a single
+conversation, fed by an **event router** that dispatches inbound events (a local socket client now;
+Telegram/webhooks later) to turns, plus a **timer source** that fires due scheduled tasks on
+wall-clock time (not just on-open). Realizes VISION §10 "Daemon + agent core" + "Proactive triggers".
+
 ## Later (not started)
 
-The **daemon + event router + true timer source** (always-on, real proactive triggers + desktop/
-Telegram). Graph expansion, incremental/mtime-keyed reindex, and memory's own local-only git are
+**Desktop app** (Tauri — needs toolchain/product decisions), **Telegram** (needs a bot token),
+**local model option**. Graph expansion, incremental/mtime reindex, memory's own local-only git
 deferred (`BACKLOG.md`).

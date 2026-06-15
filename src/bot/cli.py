@@ -4,11 +4,11 @@ import asyncio
 import json
 import os
 import sys
-from typing import Any
 
 from mcp import StdioServerParameters
 
 from .config import Settings
+from .conversation import Conversation
 from .host import MCPHost
 from .loop import run_turn
 from .provider import AnthropicProvider, ModelProvider
@@ -44,7 +44,7 @@ def _servers(settings: Settings) -> dict[str, StdioServerParameters]:
 
 
 async def _run_due_tasks(
-    history: list[Any], provider: ModelProvider, host: MCPHost
+    convo: Conversation, provider: ModelProvider, host: MCPHost
 ) -> None:
     """On-open trigger: run each due scheduled task through a normal turn."""
     listing, _ = await host.call_tool("list_scheduled_tasks", {})
@@ -54,7 +54,7 @@ async def _run_due_tasks(
     print(f"Running {len(due)} scheduled task(s)...")
     for task in due:
         print(f"[scheduled · {task['cadence']}] {task['prompt']}")
-        reply = await run_turn(history, task["prompt"], provider, host)
+        reply = await run_turn(convo, task["prompt"], provider, host)
         print(f"sipa> {reply}")
         await host.call_tool("mark_task_ran", {"id": task["id"]})
 
@@ -63,8 +63,8 @@ async def _main() -> None:
     settings = Settings()  # type: ignore[call-arg]  # loaded from env / .env
     provider = AnthropicProvider(settings)
     async with MCPHost(_servers(settings)) as host:
-        history: list[Any] = []
-        await _run_due_tasks(history, provider, host)
+        convo = Conversation()
+        await _run_due_tasks(convo, provider, host)
         print("S.I.P.A. ready. Ctrl-D to exit.")
         while True:
             try:
@@ -74,7 +74,7 @@ async def _main() -> None:
                 break
             if not user.strip():
                 continue
-            reply = await run_turn(history, user, provider, host)
+            reply = await run_turn(convo, user, provider, host)
             print(f"sipa> {reply}")
 
 
