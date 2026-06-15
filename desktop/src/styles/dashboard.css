@@ -158,6 +158,14 @@
   background: var(--surface);
   border: 1px solid var(--line);
 }
+.bubble.pending {
+  color: var(--muted);
+  letter-spacing: 0.15em;
+}
+.composer-send:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
 .composer {
   display: flex;
   gap: 10px;
