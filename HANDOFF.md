@@ -11,7 +11,7 @@ server; the core (`src/bot`) only routes turns and spawns servers, never imports
 `VISION.md`. The self-improving auto-builder (`siloop.md` etc.) is **not built** — built by hand
 only after the bot works (bot → loop → autonomy).
 
-## Status: M0–M10 done, all on GitHub
+## Status: M0–M11 done, all on GitHub
 
 - **M0** — loop: terminal → Claude → MCP host → vault. Live-verified.
 - **M1** — Obsidian server: 10 `vault_` tools + atomic writes + frontmatter validation + vault git.
@@ -39,9 +39,11 @@ only after the bot works (bot → loop → autonomy).
 - **M9** — local model option: `make_provider(settings)` picks by `provider` config; `LocalProvider`
   is a scaffold (raises `NotImplementedError`), seam reserved, not wired to a runtime.
 - **M10** — basic desktop: Tauri v2 shell in `desktop/` (chat UI → `ask` → daemon socket). Compiles.
+- **M11** — session persistence: shutdown distills a memory `episode`; startup resumes warm from the
+  latest episode (`_persist_session` / `_resume_session`).
 - **Refactor** — `servers/` at repo root; shared infra extracted to `vaultfs` + `embedding`.
 
-`make check` green: ruff + pyright + **65 tests**. (`desktop/` is Rust — built via `cargo`, not in
+`make check` green: ruff + pyright + **71 tests**. (`desktop/` is Rust — built via `cargo`, not in
 `make check`.)
 
 ## Layout
@@ -94,11 +96,10 @@ Four servers run per session: obsidian, scheduler, vault_search, memory → 25 a
 - **Retrieval is pushed, not just agentic (as of M6)** — every turn, `assemble_context` injects the
   profile + top-k memory + top-k vault into the system prompt automatically (the model no longer
   needs to call a tool to recall). Writing memory is still tool-driven (`memory_remember`), and the
-  search tools remain for deep dives. **Conversation now lives for the daemon's lifetime** (M8) —
-  continuity while running, across stdin + socket + timer events (one shared `Conversation`). It does
-  NOT survive a daemon restart yet; durable continuity comes from the memory store + vault. Within a
-  run, M7's rolling summary + compaction bound the window; persisting the summary across restarts
-  (distill to an `episode`) is deferred (`BACKLOG.md`).
+  search tools remain for deep dives. **Conversation lives for the daemon's lifetime** (M8) and now
+  **resumes warm across restarts** (M11): on shutdown the session distills into a memory `episode`,
+  on startup the latest episode seeds `Conversation.summary`. Within a run, M7's rolling summary +
+  compaction bound the window. Durable recall still lives in the memory store + vault.
 - **Retrieval is tool-driven** — model calls `vault_search_text` (keyword) / `semantic_search`
   (meaning) → reads → cites. Automatic context assembly (§5.9) is later.
 - **Scheduling now fires on wall-clock (M8)** — `TimerSource` checks due tasks every
