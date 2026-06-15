@@ -1,22 +1,33 @@
+/* Design tokens — operator-console direction (see design/desktop.md). */
+:root {
+  color-scheme: dark;
+
+  --ink: #14171c; /* base */
+  --surface: #1b1f26; /* raised surfaces, bot bubbles, inputs */
+  --line: #2a2f38; /* hairlines / seams */
+  --text: #e6e8eb;
+  --muted: #8a93a0;
+  --signal-cool: #5bd6c0; /* structure + idle (lineage from the old teal) */
+  --signal-warm: #e0a857; /* reserved: active / thinking only */
+
+  --font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, monospace;
+  --font-sans: "Public Sans Variable", system-ui, -apple-system, sans-serif;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
 }
 
-:root {
-  color-scheme: dark;
-  font-family: system-ui, sans-serif;
-  background: #14171c;
-  color: #e6e8eb;
+html,
+body,
+#root {
+  height: 100vh;
 }
 
 body {
-  height: 100vh;
-}
-
-.boot {
-  height: 100vh;
-  display: grid;
-  place-items: center;
-  letter-spacing: 0.3em;
+  background: var(--ink);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
 }
