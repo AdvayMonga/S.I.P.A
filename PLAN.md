@@ -228,6 +228,11 @@ conversation, fed by an **event router** that dispatches inbound events (stdin +
 Telegram/webhooks later) to turns, plus a **timer source** that fires due scheduled tasks on
 wall-clock time (not just on-open). Realizes VISION §10 "Daemon + agent core" + "Proactive triggers".
 
+## M9: local model option — DONE (2026-06-14)
+
+`make_provider(settings)` picks by `provider` config ("anthropic" | "local"). `LocalProvider` is a
+scaffold (raises `NotImplementedError`) — the seam is reserved, not wired to a runtime yet.
+
 ## Later (not started)
 
 **Desktop app** (Tauri — needs toolchain/product decisions), **Telegram** (needs a bot token),

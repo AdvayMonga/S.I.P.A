@@ -18,5 +18,6 @@ class Settings(BaseSettings):
     memory_db_path: Path = Path("data/memory.db")
     socket_path: Path = Path("data/sipa.sock")
     timer_interval: float = 60.0  # seconds between wall-clock scheduler checks
+    provider: str = "anthropic"  # "anthropic" | "local" (local is a scaffold, not wired yet)
     model: str = "claude-opus-4-8"
     max_tokens: int = 8192

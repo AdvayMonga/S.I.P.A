@@ -13,7 +13,7 @@ from .conversation import Conversation
 from .daemon import Daemon, Handler, Submit
 from .host import MCPHost
 from .loop import run_turn
-from .provider import AnthropicProvider
+from .provider import ModelProvider, make_provider
 from .sources import ShutdownSignal, SocketSource, StdinSource, TimerSource
 
 
@@ -46,7 +46,7 @@ def _servers(settings: Settings) -> dict[str, StdioServerParameters]:
     }
 
 
-def _make_handler(convo: Conversation, provider: AnthropicProvider, host: MCPHost) -> Handler:
+def _make_handler(convo: Conversation, provider: ModelProvider, host: MCPHost) -> Handler:
     """The turn-processor the router calls per event — one shared conversation, serialized."""
 
     async def handle(text: str) -> str:
@@ -81,7 +81,7 @@ async def _main() -> None:
     logging.basicConfig(level=logging.WARNING, format="%(name)s: %(message)s")
     logging.getLogger("sipa.cost").setLevel(logging.INFO)
     settings = Settings()  # type: ignore[call-arg]  # loaded from env / .env
-    provider = AnthropicProvider(settings)
+    provider = make_provider(settings)
     async with MCPHost(_servers(settings)) as host:
         daemon = Daemon(_make_handler(Conversation(), provider, host))
         sources = [
