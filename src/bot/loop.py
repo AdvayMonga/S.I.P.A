@@ -1,5 +1,6 @@
 """Stateless agent loop: model call -> tool calls -> repeat until a final answer."""
 
+import logging
 from typing import Any, cast
 
 from anthropic.types import TextBlock, ToolUseBlock
@@ -8,6 +9,11 @@ from .context import assemble_context
 from .conversation import Conversation, maybe_compact
 from .host import MCPHost
 from .provider import ModelProvider
+
+_log = logging.getLogger("sipa.loop")
+
+WARN_ITERATIONS = 15  # soft: log and keep going — don't interrupt a legitimately long task
+MAX_ITERATIONS = 40  # hard backstop: stop a runaway turn (tool calls that never converge)
 
 SYSTEM = (
     "You are S.I.P.A., a personal assistant with access to an Obsidian vault. "
@@ -33,7 +39,16 @@ async def run_turn(
         system = f"{system}\n\n# Conversation so far\n{convo.summary}"
 
     convo.messages.append({"role": "user", "content": user_message})
+    iterations = 0
     while True:
+        iterations += 1
+        if iterations == WARN_ITERATIONS:
+            _log.warning("turn still running after %d tool iterations…", WARN_ITERATIONS)
+        if iterations > MAX_ITERATIONS:
+            _log.error("turn hit the %d-iteration cap; stopping", MAX_ITERATIONS)
+            stopped = f"[stopped after {MAX_ITERATIONS} tool iterations]"
+            convo.messages.append({"role": "assistant", "content": stopped})  # keep alternation
+            return stopped
         response = await provider.generate(
             system=system, messages=convo.messages, tools=host.tools_for_model()
         )
