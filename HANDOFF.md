@@ -11,7 +11,7 @@ server; the core (`src/bot`) only routes turns and spawns servers, never imports
 `VISION.md`. The self-improving auto-builder (`siloop.md` etc.) is **not built** — built by hand
 only after the bot works (bot → loop → autonomy).
 
-## Status: M0–M11 done, all on GitHub
+## Status: M0–M12 done, all on GitHub
 
 - **M0** — loop: terminal → Claude → MCP host → vault. Live-verified.
 - **M1** — Obsidian server: 10 `vault_` tools + atomic writes + frontmatter validation + vault git.
@@ -41,9 +41,11 @@ only after the bot works (bot → loop → autonomy).
 - **M10** — basic desktop: Tauri v2 shell in `desktop/` (chat UI → `ask` → daemon socket). Compiles.
 - **M11** — session persistence: shutdown distills a memory `episode`; startup resumes warm from the
   latest episode (`_persist_session` / `_resume_session`).
+- **M12** — loop cap (warn @15 iterations, hard stop @40) + per-call/session **cost in dollars**
+  (`cost_usd`, prices in config). Auto-builder will bill to the Max subscription (`DECISIONS.md`).
 - **Refactor** — `servers/` at repo root; shared infra extracted to `vaultfs` + `embedding`.
 
-`make check` green: ruff + pyright + **71 tests**. (`desktop/` is Rust — built via `cargo`, not in
+`make check` green: ruff + pyright + **76 tests**. (`desktop/` is Rust — built via `cargo`, not in
 `make check`.)
 
 ## Layout

@@ -247,8 +247,16 @@ ones are redundant; we keep exactly one active (no accumulation, no window to tu
 `_resume_session` seeds `Conversation.summary` from it → resume warm. Skips empty sessions, ignores
 model-made episodes, bad saves never block exit.
 
+## M12: loop cap + cost rollup — DONE (2026-06-15)
+
+Agent loop now warns at `WARN_ITERATIONS=15` (logs, keeps going — won't pause long tasks) and hard-
+stops a runaway turn at `MAX_ITERATIONS=40` (returns a notice, ends alternating). `AnthropicProvider`
+accumulates session token totals and logs per-call + running **dollar cost** (`cost_usd`, prices in
+config; defaults = Opus 4.8 $5/$25). Decided: auto-builder coding will bill to the Max subscription
+via Claude Code (`DECISIONS.md`).
+
 ## Later (not started)
 
-Token budgeting/cost rollups, graph expansion, incremental/mtime reindex, memory's own local-only
-git, wiring `LocalProvider` to a real runtime, and — only if independent per-session episodes are
-added later — relevance/decay-based pruning of those (`BACKLOG.md`).
+Real-tokenizer context budget + hard spend ceiling, graph expansion, incremental/mtime reindex,
+memory's own local-only git, wiring `LocalProvider` to a real runtime, and — only if independent
+per-session episodes are added later — relevance/decay-based pruning of those (`BACKLOG.md`).
