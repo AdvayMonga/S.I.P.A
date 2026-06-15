@@ -16,6 +16,7 @@ Status: `planned` · `building` · `built`.
 | Conversation memory | built | [conversation-memory.md](design/conversation-memory.md) | The within-session HANDOFF: `Conversation` (messages + rolling summary); compaction folds old turns into the summary when the window grows; summary enriches retrieval + is injected. |
 | Daemon + event router | built | [daemon.md](design/daemon.md) | Always-on core: one serialized router (queue + `Conversation`) fed by event sources — stdin (REPL), Unix socket (external clients), wall-clock timer (fires due scheduled tasks). Token/cost logging. |
 | Desktop app | built (basic) | [desktop.md](design/desktop.md) | Extremely basic Tauri v2 shell: chat UI → `ask` command → daemon Unix socket. The front-end seam. |
+| Cloud presence | planned (sketch) | [cloud-presence.md](design/cloud-presence.md) | Sketch: dumb always-on relay (outbox + timer) for reliable reminder delivery; brain stays local. |
 
 ---
 
