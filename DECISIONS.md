@@ -202,3 +202,24 @@ orphaned `tool_result`. Tested.
 **Scope line.** The summary lives in memory for the session only — persisting it across process
 restarts (and optionally distilling it into the memory store as an `episode`) needs a real session
 lifecycle and belongs with the daemon (`BACKLOG.md`).
+
+## 2026-06-14 — Daemon: one serialized router, many sources; on-open fires once
+
+**Decision.** The REPL becomes a long-lived `Daemon`: one `Conversation` + one `asyncio.Queue`,
+processed by a single `_router` that runs turns one at a time. Inputs arrive as `Event`s from
+pluggable `Source`s — `StdinSource` (the REPL), `SocketSource` (Unix socket for external clients),
+`TimerSource` (wall-clock). Each event carries a `respond` callback so a reply goes back to *its*
+origin. `_make_handler` wires the router to `run_turn`.
+
+**Why.** Serial-by-construction means all sources share one brain without locking or races. Sources
+are the extension seam for desktop/Telegram (just add a `Source`) — mirroring how MCP servers are
+the seam for capabilities. A handler exception becomes an `[error]` reply, never killing the daemon.
+
+**on-open under a persistent process.** `on-open` tasks are "always due"; a never-closing daemon
+would re-fire them every timer tick. So `_make_fire_due` fires on-open tasks only on the **first
+(startup) tick**; daily/weekly fire whenever genuinely due. With a daemon, "open" = startup.
+
+**Shutdown.** `StdinSource` raises `ShutdownSignal` on EOF; the TaskGroup unwinds and `cli` catches
+it with `except*`. Headless deployments simply omit `StdinSource`.
+
+**Deferred:** token budgeting/cost rollups and session-summary persistence (`BACKLOG.md`).

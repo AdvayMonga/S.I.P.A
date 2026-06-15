@@ -15,6 +15,7 @@ dependencies = [
 
 [project.scripts]
 sipa = "bot.cli:main"
+sipa-client = "bot.client:main"
 
 [dependency-groups]
 dev = [

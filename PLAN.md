@@ -213,10 +213,18 @@ scheduled tasks share it). `make check` green — 57 tests. Design: `design/conv
 real session lifecycle → daemon); distilling the summary into the memory store as an `episode`;
 real-tokenizer thresholds.
 
-## M8: daemon + event router + timer source — IN PROGRESS
+## M8: daemon + event router + timer source — DONE (2026-06-14)
+
+**Status: done and verified.** `src/bot/daemon.py` (`Daemon`: queue + `_router` + `Event`) +
+`src/bot/sources.py` (`StdinSource`, `SocketSource`, `TimerSource`, `ShutdownSignal`) +
+`src/bot/client.py` (`sipa-client`). `cli` builds the host + one `Conversation`, wires the three
+sources, runs the daemon. on-open tasks fire only on the first (startup) tick; daily/weekly on any
+due tick. Per-call token usage logged to `sipa.cost`. `make check` green — 62 tests (router reply +
+error isolation, socket multi-turn round-trip, real `_make_handler` wiring over socket, timer
+cadence). Design: `design/daemon.md`.
 
 **Goal.** Turn the REPL into an always-on daemon: a long-lived process holding the host + a single
-conversation, fed by an **event router** that dispatches inbound events (a local socket client now;
+conversation, fed by an **event router** that dispatches inbound events (stdin + a local socket now;
 Telegram/webhooks later) to turns, plus a **timer source** that fires due scheduled tasks on
 wall-clock time (not just on-open). Realizes VISION §10 "Daemon + agent core" + "Proactive triggers".
 

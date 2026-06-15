@@ -89,3 +89,14 @@ conversation and use it to enrich the retrieval query in `assemble_context` (so 
 deferred transcript-compaction work (the within-session "HANDOFF") and overlaps the existing
 "query transformation" bullet above — implement them together. M6 ships with the raw user message as
 the query; this is the first refinement once it's in use.
+
+## 2026-06-14 — Daemon follow-ups (M8 deferrals)
+
+- **Token budgeting + cost rollups.** M8 logs per-call `tokens in/out` (`sipa.cost`). A real
+  per-turn/session cost rollup with pricing, and an actual token *budget* on context assembly (pairs
+  with the real tokenizer, M6 deferral), are still open. VISION lists budgeting with the daemon.
+- **Session-summary persistence across restarts.** Now that the daemon gives a real session
+  lifecycle, persist M7's rolling summary on shutdown (and optionally distill it into the memory
+  store as an `episode`) so a restart resumes warm. M8 keeps the summary in-process only.
+- **Telegram + webhook sources.** Just more `Source`s feeding the same router. Telegram needs a bot
+  token from the user; webhooks need an ingress. Deferred to the event-sources milestone.

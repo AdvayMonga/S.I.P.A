@@ -11,7 +11,7 @@ server; the core (`src/bot`) only routes turns and spawns servers, never imports
 `VISION.md`. The self-improving auto-builder (`siloop.md` etc.) is **not built** — built by hand
 only after the bot works (bot → loop → autonomy).
 
-## Status: M0–M7 done, all on GitHub
+## Status: M0–M8 done, all on GitHub
 
 - **M0** — loop: terminal → Claude → MCP host → vault. Live-verified.
 - **M1** — Obsidian server: 10 `vault_` tools + atomic writes + frontmatter validation + vault git.
@@ -32,16 +32,21 @@ only after the bot works (bot → loop → autonomy).
 - **M7** — conversation memory: `Conversation` (messages + rolling summary). `maybe_compact` folds
   old turns into the summary when the window grows (keeps recent verbatim, tool-pairing safe); the
   summary enriches retrieval + is injected as `# Conversation so far`. The within-session HANDOFF.
+- **M8** — daemon: REPL → always-on process. One serialized event router (queue + `Conversation`)
+  fed by sources — `StdinSource` (REPL), `SocketSource` (Unix socket, external clients via
+  `sipa-client`), `TimerSource` (wall-clock fires due scheduled tasks; on-open once at startup).
+  Per-call token usage logged to `sipa.cost`.
 - **Refactor** — `servers/` at repo root; shared infra extracted to `vaultfs` + `embedding`.
 
-`make check` green: ruff + pyright + **57 tests**.
+`make check` green: ruff + pyright + **62 tests**.
 
 ## Layout
 
 ```
-src/bot/       core: config, cli (+ on-open scheduler trigger), host (multi-server), loop,
-               context (per-turn pushed retrieval → system prompt), conversation (rolling
-               summary + compaction), provider
+src/bot/       core: config, cli (builds host + sources, runs daemon), daemon (router + queue),
+               sources (stdin/socket/timer), client (sipa-client), host (multi-server), loop,
+               context (per-turn pushed retrieval), conversation (rolling summary + compaction),
+               provider (+ token/cost log)
 src/vaultfs/   SHARED infra: vault.py (path-safe fs ops), vault_git.py (local git).
 src/embedding/ SHARED infra: Embedder protocol + FastEmbedEmbedder (bge-small). vault_search +
                memory depend downward on it. bot (router) never imports shared infra; no server
@@ -60,8 +65,11 @@ Four servers run per session: obsidian, scheduler, vault_search, memory → 25 a
 
 ## How to run / verify
 
-- **Run:** `make run` (= `uv run sipa`). On open it runs any due scheduled tasks, then a REPL.
-  `Ctrl-D` exits. First run downloads the ~50MB embedding model (one-time).
+- **Run:** `make run` (= `uv run sipa`) starts the **daemon**: it binds a Unix socket
+  (`data/sipa.sock`), starts the wall-clock timer (fires due scheduled tasks; on-open at startup),
+  and gives you the terminal REPL. `Ctrl-D` exits. First run downloads the ~50MB embedding model.
+- **External client:** `uv run sipa-client` connects to a running daemon's socket from another
+  terminal (the path desktop/Telegram front-ends will reuse).
 - **Check:** `make check` (ruff + pyright + pytest). Python pinned 3.12 via `uv`.
 - **Config:** `.env` (gitignored) holds `ANTHROPIC_API_KEY` + `VAULT_PATH` (both filled).
   Default model `claude-opus-4-8`, thinking off.
@@ -79,22 +87,30 @@ Four servers run per session: obsidian, scheduler, vault_search, memory → 25 a
 - **Retrieval is pushed, not just agentic (as of M6)** — every turn, `assemble_context` injects the
   profile + top-k memory + top-k vault into the system prompt automatically (the model no longer
   needs to call a tool to recall). Writing memory is still tool-driven (`memory_remember`), and the
-  search tools remain for deep dives. **Conversation history is still per-REPL-run** — durable
-  continuity comes from the memory store + vault, not the chat log. Within a session, M7's rolling
-  summary + compaction bound the window; persisting that summary across restarts is the daemon's job.
+  search tools remain for deep dives. **Conversation now lives for the daemon's lifetime** (M8) —
+  continuity while running, across stdin + socket + timer events (one shared `Conversation`). It does
+  NOT survive a daemon restart yet; durable continuity comes from the memory store + vault. Within a
+  run, M7's rolling summary + compaction bound the window; persisting the summary across restarts
+  (distill to an `episode`) is deferred (`BACKLOG.md`).
 - **Retrieval is tool-driven** — model calls `vault_search_text` (keyword) / `semantic_search`
   (meaning) → reads → cites. Automatic context assembly (§5.9) is later.
-- **Scheduling is on-open only** — true unattended wall-clock firing needs the daemon's timer
-  source (a later milestone). "Daily" works via last-run timestamps even with intermittent use.
+- **Scheduling now fires on wall-clock (M8)** — `TimerSource` checks due tasks every
+  `timer_interval` (60s default) while the daemon runs; on-open fires once at startup. Last-run
+  timestamps still make "daily/weekly" correct across intermittent runs.
 - **Cross-server coupling debt — RESOLVED (2026-06-13)** — vault fs/git extracted to the top-level
   `vaultfs` package; servers depend downward on it, none import each other. See `DECISIONS.md`.
 - Why-decisions: `DECISIONS.md`; deferred scope: `BACKLOG.md`; per-feature designs: `design/`.
 
 ## Next (see `PLAN.md`)
 
-1. **M8 (in progress): daemon + event router + timer source** — always-on process; socket client
-   event source now, Telegram/webhooks later; wall-clock timer fires due scheduled tasks.
-2. **Then:** desktop app (Tauri — needs decisions), Telegram (needs a bot token), local model.
+Needs user input before building:
+1. **Desktop app** (Tauri) — toolchain (Rust+Node) + product decisions. The socket (`sipa-client`)
+   is the seam it plugs into.
+2. **Telegram source** — needs a bot token from the user. Then it's just another `Source`.
+3. **Local model option** — which model/runtime.
+
+Buildable without input: token budgeting/cost rollups, session-summary persistence across restarts
+(distill to a memory `episode` on shutdown), graph one-hop, incremental reindex — all in `BACKLOG.md`.
 
 ## Gotchas
 

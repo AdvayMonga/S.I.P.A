@@ -1,7 +1,8 @@
-"""REPL front-end: run any due scheduled tasks on open, then read-eval-print. No daemon yet."""
+"""Daemon front-end: build the host + conversation, wire event sources, run the always-on loop."""
 
 import asyncio
 import json
+import logging
 import os
 import sys
 
@@ -9,9 +10,11 @@ from mcp import StdioServerParameters
 
 from .config import Settings
 from .conversation import Conversation
+from .daemon import Daemon, Handler, Submit
 from .host import MCPHost
 from .loop import run_turn
-from .provider import AnthropicProvider, ModelProvider
+from .provider import AnthropicProvider
+from .sources import ShutdownSignal, SocketSource, StdinSource, TimerSource
 
 
 def _servers(settings: Settings) -> dict[str, StdioServerParameters]:
@@ -43,39 +46,53 @@ def _servers(settings: Settings) -> dict[str, StdioServerParameters]:
     }
 
 
-async def _run_due_tasks(
-    convo: Conversation, provider: ModelProvider, host: MCPHost
-) -> None:
-    """On-open trigger: run each due scheduled task through a normal turn."""
-    listing, _ = await host.call_tool("list_scheduled_tasks", {})
-    due = [t for t in json.loads(listing) if t["due"]]
-    if not due:
-        return
-    print(f"Running {len(due)} scheduled task(s)...")
-    for task in due:
-        print(f"[scheduled · {task['cadence']}] {task['prompt']}")
-        reply = await run_turn(convo, task["prompt"], provider, host)
-        print(f"sipa> {reply}")
-        await host.call_tool("mark_task_ran", {"id": task["id"]})
+def _make_handler(convo: Conversation, provider: AnthropicProvider, host: MCPHost) -> Handler:
+    """The turn-processor the router calls per event — one shared conversation, serialized."""
+
+    async def handle(text: str) -> str:
+        return await run_turn(convo, text, provider, host)
+
+    return handle
+
+
+def _make_fire_due(host: MCPHost):
+    """Timer tick: submit each due scheduled task. on-open tasks fire only on the first (startup)
+    tick — with a persistent daemon, 'open' means startup, not every wall-clock check."""
+    first = True
+
+    async def fire_due(submit: Submit) -> None:
+        nonlocal first
+        listing, _ = await host.call_tool("list_scheduled_tasks", {})
+        for task in json.loads(listing):
+            if not task["due"] or (task["cadence"] == "on-open" and not first):
+                continue
+
+            async def respond(reply: str, task: dict = task) -> None:
+                await host.call_tool("mark_task_ran", {"id": task["id"]})
+                print(f"[scheduled · {task['cadence']}] {reply}")
+
+            await submit(task["prompt"], respond)
+        first = False
+
+    return fire_due
 
 
 async def _main() -> None:
+    logging.basicConfig(level=logging.WARNING, format="%(name)s: %(message)s")
+    logging.getLogger("sipa.cost").setLevel(logging.INFO)
     settings = Settings()  # type: ignore[call-arg]  # loaded from env / .env
     provider = AnthropicProvider(settings)
     async with MCPHost(_servers(settings)) as host:
-        convo = Conversation()
-        await _run_due_tasks(convo, provider, host)
-        print("S.I.P.A. ready. Ctrl-D to exit.")
-        while True:
-            try:
-                user = await asyncio.to_thread(input, "you> ")
-            except EOFError:
-                print()
-                break
-            if not user.strip():
-                continue
-            reply = await run_turn(convo, user, provider, host)
-            print(f"sipa> {reply}")
+        daemon = Daemon(_make_handler(Conversation(), provider, host))
+        sources = [
+            SocketSource(str(settings.socket_path.resolve())),
+            TimerSource(_make_fire_due(host), settings.timer_interval),
+            StdinSource(),
+        ]
+        try:
+            await daemon.run(sources)
+        except* ShutdownSignal:
+            pass  # stdin EOF → clean exit
 
 
 def main() -> None:
