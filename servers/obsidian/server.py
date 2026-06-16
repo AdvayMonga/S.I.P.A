@@ -117,6 +117,17 @@ def vault_trash_note(path: str) -> str:
     return _committed(f"trash {path} -> {dst.name}", [])
 
 
+@mcp.tool()
+def vault_undo() -> str:
+    """Undo the most recent change S.I.P.A. made to the vault (reverts the last commit). Leaves your
+    own edits alone."""
+    subject = vault_git.undo_last(_root())
+    if subject is None:
+        return "Nothing to undo."
+    index.reindex(_index(), _root())  # files changed on disk — rebuild the keyword index
+    return f"Undid: {subject}"
+
+
 if __name__ == "__main__":
     index.reindex(_index(), _root())  # rebuild from the vault (picks up manual edits)
     mcp.run()
