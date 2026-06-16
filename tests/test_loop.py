@@ -5,7 +5,7 @@ from typing import Any
 from anthropic.types import TextBlock, ToolUseBlock
 
 from bot.conversation import Conversation
-from bot.loop import MAX_ITERATIONS, _approved, run_turn
+from bot.loop import MAX_ITERATIONS, Approver, run_turn
 
 
 class FakeHost:
@@ -52,15 +52,47 @@ def test_normal_turn_does_not_trip_cap() -> None:
 
 def test_approval_denied_when_unattended() -> None:
     # No interactive session (ask is None) → approval-gated tools are denied (the unattended-block).
-    assert asyncio.run(_approved("run_shell", {"command": "ls"}, None)) is False
+    assert asyncio.run(Approver().approve("run_shell", {"command": "ls"}, None)) is False
 
 
 def test_approval_follows_user_answer() -> None:
-    async def yes(_question: str) -> str:
+    async def yes(_q: str) -> str:
         return "y"
 
-    async def no(_question: str) -> str:
+    async def no(_q: str) -> str:
         return "nope"
 
-    assert asyncio.run(_approved("run_shell", {"command": "ls"}, yes)) is True
-    assert asyncio.run(_approved("run_shell", {"command": "rm -rf /"}, no)) is False
+    assert asyncio.run(Approver().approve("run_shell", {"command": "ls"}, yes)) is True
+    assert asyncio.run(Approver().approve("run_shell", {"command": "rm -rf /"}, no)) is False
+
+
+def test_trust_mode_runs_without_asking() -> None:
+    asked = False
+
+    async def ask(_q: str) -> str:
+        nonlocal asked
+        asked = True
+        return "n"
+
+    ok = asyncio.run(Approver(mode="trust").approve("run_shell", {"command": "ls"}, ask))
+    assert ok is True and asked is False  # never prompted
+
+
+def test_always_allowlists_the_command() -> None:
+    async def scenario() -> None:
+        prompts = 0
+
+        async def ask(_q: str) -> str:
+            nonlocal prompts
+            prompts += 1
+            return "always"
+
+        approver = Approver()
+        assert await approver.approve("run_shell", {"command": "npm test"}, ask) is True
+        # same command again — allowlisted, no second prompt
+        assert await approver.approve("run_shell", {"command": "npm test"}, ask) is True
+        # a different command still prompts
+        assert await approver.approve("run_shell", {"command": "npm run build"}, ask) is True
+        assert prompts == 2
+
+    asyncio.run(scenario())

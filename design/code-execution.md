@@ -8,9 +8,11 @@ keep VISION's "autonomy is the last thing that turns on" intact. The autonomous/
 
 1. **Off by default.** The `exec` server spawns only when `EXEC_ROOT` is set. No root → no shell.
 2. **Scoping.** `run_shell(command)` runs with `cwd = EXEC_ROOT`, a 30s timeout, and capped output.
-3. **Approval gate.** `run_shell` is in `loop.APPROVAL_REQUIRED`. Before it runs, the loop calls
-   `_approved` → asks the user (`ask`) `[y/N]`. Reversible tools (vault writes auto-commit to git,
-   reads, search) are **not** gated — they run freely.
+3. **Approval gate.** `run_shell` is in `loop.APPROVAL_REQUIRED`. Before it runs, the loop's
+   `Approver` asks the user `[y]es · [a]lways · [N]o`. **"always"** allowlists that exact command for
+   the session (no re-prompt). `approval_mode="trust"` runs without asking at all. Reversible tools
+   (vault writes auto-commit to git, reads, search) are **not** gated — they run freely. This is the
+   Claude-Code permission model (free for safe, prompt for risky, allowlist/mode to cut prompts).
 4. **Unattended-block.** `ask is None` on timer/background turns → `_approved` returns False → shell
    is **denied** when no human is watching. No autonomous shell without a sandbox.
 
@@ -40,5 +42,6 @@ shell asks. That's the risk-tiered model: reversible = free, irreversible/extern
   protocol is in place; the Tauri client needs to handle it).
 - **`undo`** — revert the last vault/file change (the git commit is already there).
 - **Action summaries** — compact per-action reporting ("edited X, ran Y").
-- **Trust mode** — a setting to run shell without prompting (you accept the risk, scoped).
 - **Sandbox** — isolated runtime so the autobuilder can run shell *unattended* safely.
+
+(Trust mode + the "always" allowlist are **built** — `Approver`, `approval_mode`.)

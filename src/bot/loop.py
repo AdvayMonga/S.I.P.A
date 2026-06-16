@@ -24,14 +24,33 @@ MAX_ITERATIONS = 40  # hard backstop: stop a runaway turn (tool calls that never
 APPROVAL_REQUIRED: set[str] = {"run_shell"}
 
 
-async def _approved(name: str, args: dict[str, Any], ask: Ask | None) -> bool:
-    """Gate an irreversible/external tool. No interactive session (ask is None) → deny: this is the
-    unattended-block — code/dangerous actions never run on a timer or in a background agent."""
-    if ask is None:
-        _log.info("denied %s — no interactive session to approve", name)
-        return False
-    answer = await ask(f"Approve `{name}`?  {json.dumps(args)[:300]}  [y/N]")
-    return answer.strip().lower() in {"y", "yes"}
+def _signature(name: str, args: dict[str, Any]) -> str:
+    """A stable key for the allowlist — the shell command itself, else the tool name."""
+    return args["command"] if name == "run_shell" and "command" in args else name
+
+
+class Approver:
+    """Permission policy for irreversible/external tools (Claude-Code-style). `mode='trust'` runs
+    without asking; otherwise asks per action, with an in-session allowlist ("always") so you're not
+    re-prompted for the same command. Unattended turns (ask is None) are always denied."""
+
+    def __init__(self, mode: str = "ask") -> None:
+        self._mode = mode  # "ask" | "trust"
+        self._allow: set[str] = set()  # signatures pre-approved this session
+
+    async def approve(self, name: str, args: dict[str, Any], ask: Ask | None) -> bool:
+        if ask is None:  # unattended-block — never on a timer or in a background agent
+            _log.info("denied %s — no interactive session to approve", name)
+            return False
+        sig = _signature(name, args)
+        if self._mode == "trust" or sig in self._allow:
+            return True
+        question = f"Approve `{name}`: {sig[:200]}  [y]es · [a]lways · [N]o"
+        answer = (await ask(question)).strip().lower()
+        if answer in {"a", "always"}:
+            self._allow.add(sig)
+            return True
+        return answer in {"y", "yes"}
 
 SYSTEM = (
     "You are S.I.P.A., a personal assistant with access to an Obsidian vault. "
@@ -50,6 +69,7 @@ async def run_turn(
     allow_delegate: bool = False,
     spawn_background: Callable[[str], Awaitable[str]] | None = None,
     ask: Ask | None = None,
+    approver: "Approver | None" = None,
 ) -> str:
     """Run one user turn to completion, mutating `convo` in place. `allow_delegate` offers the
     `delegate`/`delegate_background` tools — only top-level turns set it, so sub-agents can't
@@ -98,7 +118,9 @@ async def run_turn(
                     text, is_error = "background delegation unavailable", True
                 else:
                     text, is_error = await spawn_background(args.get("task", "")), False
-            elif block.name in APPROVAL_REQUIRED and not await _approved(block.name, args, ask):
+            elif block.name in APPROVAL_REQUIRED and not (
+                approver is not None and await approver.approve(block.name, args, ask)
+            ):
                 text, is_error = "[denied — needs your approval in an interactive session]", True
             else:
                 text, is_error = await host.call_tool(block.name, args)

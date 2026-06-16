@@ -12,7 +12,7 @@ from .config import Settings
 from .conversation import Conversation, finalize_summary
 from .daemon import Ask, Daemon, Handler, Respond, Submit
 from .host import MCPHost
-from .loop import run_turn
+from .loop import Approver, run_turn
 from .provider import ModelProvider, make_provider
 from .sources import ShutdownSignal, SocketSource, StdinSource, TimerSource
 from .subagent import BackgroundDelegator
@@ -71,6 +71,7 @@ def _make_handler(
     provider: ModelProvider,
     host: MCPHost,
     delegator: BackgroundDelegator,
+    approver: Approver,
 ) -> Handler:
     """The turn-processor the router calls per event — one shared conversation, serialized."""
 
@@ -83,6 +84,7 @@ def _make_handler(
             allow_delegate=True,
             spawn_background=delegator.start,
             ask=ask,
+            approver=approver,
         )
 
     return handle
@@ -160,7 +162,8 @@ async def _main() -> None:
         convo = Conversation()
         await _resume_session(convo, host)
         delegator = BackgroundDelegator(provider, host)
-        daemon = Daemon(_make_handler(convo, provider, host, delegator))
+        approver = Approver(settings.approval_mode)
+        daemon = Daemon(_make_handler(convo, provider, host, delegator, approver))
 
         async def present_background(task_id: int, task: str, result: str) -> None:
             # Route the finished result through the router so the bot presents it in context (lands

@@ -9,6 +9,7 @@ from anthropic.types import TextBlock
 from bot.cli import _make_handler
 from bot.conversation import Conversation
 from bot.daemon import ASK_PREFIX, Daemon
+from bot.loop import Approver
 from bot.sources import SocketSource, TimerSource
 from bot.subagent import BackgroundDelegator
 
@@ -116,7 +117,9 @@ def test_real_handler_wiring_over_socket() -> None:
     async def scenario() -> None:
         provider, fhost = _FakeProvider(), _FakeHost()
         delegator = BackgroundDelegator(provider, fhost)  # type: ignore[arg-type]
-        handle = _make_handler(Conversation(), provider, fhost, delegator)  # type: ignore[arg-type]
+        handle = _make_handler(
+            Conversation(), provider, fhost, delegator, Approver()  # type: ignore[arg-type]
+        )
         daemon = Daemon(handle)
         router = asyncio.create_task(daemon._router())
         source = asyncio.create_task(SocketSource(sock).run(daemon.submit, daemon.register_sink))

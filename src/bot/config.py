@@ -25,5 +25,6 @@ class Settings(BaseSettings):
     thinking: bool = True  # adaptive thinking (better reasoning; thinking tokens billed as output)
     fs_read_roots: str = ""  # os.pathsep-separated dirs the fs server may read; empty = no access
     exec_root: str = ""  # working dir for the shell server; empty = no shell (approval-gated)
+    approval_mode: str = "ask"  # "ask" (prompt for risky tools) | "trust" (run without asking)
     input_price_per_mtok: float = 5.0  # claude-opus-4-8 pricing; set to your plan/model rate
     output_price_per_mtok: float = 25.0

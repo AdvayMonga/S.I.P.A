@@ -57,11 +57,12 @@ only after the bot works (bot → loop → autonomy).
   terminal AND the desktop app (persistent `:subscribe` connection → `sipa-push` event → chat).
 - **M17** — interactive code execution: **approval round-trip** (`Ask` threaded source→router→
   `run_turn`; terminal + socket `ASK_PREFIX`) + **`exec` server** (`run_shell`, scoped to
-  `EXEC_ROOT`, off by default, timeout/cap). `run_shell` ∈ `loop.APPROVAL_REQUIRED`: interactive
-  turns ask `[y/N]`; **unattended turns (ask=None) are denied** (no autonomous shell sans sandbox).
+  `EXEC_ROOT`, off by default, timeout/cap). `run_shell` ∈ `loop.APPROVAL_REQUIRED`; `Approver`
+  (`approval_mode` ask|trust + in-session "always" allowlist) gates it: interactive asks
+  `[y]/[a]/[N]`; **unattended turns (ask=None) are denied** (no autonomous shell sans sandbox).
 - **Refactor** — `servers/` at repo root; shared infra extracted to `vaultfs` + `embedding`.
 
-`make check` green: ruff + pyright + **104 tests**. (`desktop/` is Rust — built via `cargo`, not in
+`make check` green: ruff + pyright + **106 tests**. (`desktop/` is Rust — built via `cargo`, not in
 `make check`.)
 
 ## Layout
