@@ -90,6 +90,16 @@ async def _subscribe(
         remove()
 
 
+async def _send(writer: asyncio.StreamWriter, text: str) -> bool:
+    """Write a line to the client; swallow errors if it has disconnected (returns success)."""
+    try:
+        writer.write((text + "\n").encode())
+        await writer.drain()
+        return True
+    except (ConnectionError, OSError):
+        return False
+
+
 async def _serve(
     first: bytes, reader: asyncio.StreamReader, writer: asyncio.StreamWriter, submit: Submit
 ) -> None:
@@ -97,8 +107,8 @@ async def _serve(
     Mid-turn questions are written with ASK_PREFIX; the client's next line is the answer."""
 
     async def ask(question: str) -> str:
-        writer.write((ASK_PREFIX + question + "\n").encode())
-        await writer.drain()
+        if not await _send(writer, ASK_PREFIX + question):
+            return ""  # client gone → empty answer → treated as "not approved"
         answer = await reader.readline()
         return answer.decode().strip()
 
@@ -109,8 +119,7 @@ async def _serve(
             done = asyncio.Event()
 
             async def respond(reply: str, done: asyncio.Event = done) -> None:
-                writer.write((reply + "\n").encode())
-                await writer.drain()
+                await _send(writer, reply)  # never raises into the router if the client dropped
                 done.set()
 
             await submit(text, respond, ask)
