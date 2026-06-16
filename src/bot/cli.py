@@ -63,7 +63,7 @@ def _make_handler(convo: Conversation, provider: ModelProvider, host: MCPHost) -
     """The turn-processor the router calls per event — one shared conversation, serialized."""
 
     async def handle(text: str) -> str:
-        return await run_turn(convo, text, provider, host)
+        return await run_turn(convo, text, provider, host, allow_delegate=True)
 
     return handle
 

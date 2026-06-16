@@ -1,5 +1,6 @@
 """Stateless agent loop: model call -> tool calls -> repeat until a final answer."""
 
+import json
 import logging
 from typing import Any, cast
 
@@ -9,6 +10,7 @@ from .context import assemble_context
 from .conversation import Conversation, maybe_compact
 from .host import MCPHost
 from .provider import ModelProvider
+from .subagent import DELEGATE_TOOL, run_subagents
 
 _log = logging.getLogger("sipa.loop")
 
@@ -28,8 +30,11 @@ async def run_turn(
     user_message: str,
     provider: ModelProvider,
     host: MCPHost,
+    *,
+    allow_delegate: bool = False,
 ) -> str:
-    """Run one user turn to completion, mutating `convo` in place."""
+    """Run one user turn to completion, mutating `convo` in place. `allow_delegate` offers the
+    `delegate` tool — only top-level turns set it, so sub-agents can't recurse."""
     await maybe_compact(convo, provider)  # bound the window before we build the turn
     # Enrich the retrieval query with the rolling summary so follow-ups retrieve against state.
     query = f"{convo.summary[-500:]} {user_message}".strip() if convo.summary else user_message
@@ -38,6 +43,7 @@ async def run_turn(
     if convo.summary:
         system = f"{system}\n\n# Conversation so far\n{convo.summary}"
 
+    tools = [*host.tools_for_model(), DELEGATE_TOOL] if allow_delegate else host.tools_for_model()
     convo.messages.append({"role": "user", "content": user_message})
     iterations = 0
     while True:
@@ -49,9 +55,7 @@ async def run_turn(
             stopped = f"[stopped after {MAX_ITERATIONS} tool iterations]"
             convo.messages.append({"role": "assistant", "content": stopped})  # keep alternation
             return stopped
-        response = await provider.generate(
-            system=system, messages=convo.messages, tools=host.tools_for_model()
-        )
+        response = await provider.generate(system=system, messages=convo.messages, tools=tools)
         convo.messages.append({"role": "assistant", "content": response.content})
 
         if response.stop_reason != "tool_use":
@@ -64,7 +68,11 @@ async def run_turn(
             if not isinstance(block, ToolUseBlock):
                 continue
             args = cast("dict[str, Any]", block.input)
-            text, is_error = await host.call_tool(block.name, args)
+            if block.name == "delegate":
+                results = await run_subagents(args.get("tasks", []), provider, host)
+                text, is_error = json.dumps(results), False
+            else:
+                text, is_error = await host.call_tool(block.name, args)
             tool_results.append(
                 {
                     "type": "tool_result",

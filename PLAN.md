@@ -269,8 +269,17 @@ on by default (`config.thinking`, provider). **`fs` server** — `read_file`/`li
 confined to `FS_READ_ROOTS` (path-safe, read-only). **Vision** — `host._to_content` passes image
 content from tool results to the model. Design: `design/local-files.md`. Live-verified.
 
+## M15: sub-agents (fan-out) — DONE (2026-06-15)
+
+`delegate(tasks)` tool → `subagent.run_subagents` runs each as an isolated `run_turn` (fresh
+Conversation, same host tools), concurrent up to `MAX_SUBAGENTS=5`. Offered only on top-level turns
+(`allow_delegate=True`), so sub-agents can't recurse (1-level). Design: `design/sub-agents.md`.
+
+**Next mode:** background delegation ("keep chatting while it runs") — detached sub-agent + completion
+posted to the event router (like the timer). Deferred (`BACKLOG.md`).
+
 **Base toolbox left:** code execution / filesystem write (tier 2 — gated by the sandbox/autonomy
-decision), computer use + sub-agents (tier 3). Connectors (Gmail/Calendar/Drive) separately.
+decision), computer use (tier 3). Connectors (Gmail/Calendar/Drive) separately.
 
 ## Later (not started)
 

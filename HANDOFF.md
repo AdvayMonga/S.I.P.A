@@ -11,7 +11,7 @@ server; the core (`src/bot`) only routes turns and spawns servers, never imports
 `VISION.md`. The self-improving auto-builder (`siloop.md` etc.) is **not built** — built by hand
 only after the bot works (bot → loop → autonomy).
 
-## Status: M0–M14 done, all on GitHub
+## Status: M0–M15 done, all on GitHub
 
 - **M0** — loop: terminal → Claude → MCP host → vault. Live-verified.
 - **M1** — Obsidian server: 10 `vault_` tools + atomic writes + frontmatter validation + vault git.
@@ -48,18 +48,21 @@ only after the bot works (bot → loop → autonomy).
 - **M14** — base toolbox tier 1: **adaptive thinking** (provider, default on), **`fs` server**
   (`read_file`/`list_dir`/`read_image`, scoped to `FS_READ_ROOTS`, path-safe), and **vision** (host
   passes image content from tool results → the model sees images). Live-verified.
+- **M15** — sub-agents (fan-out): `delegate` tool → isolated sub-agent loops run in parallel (cap 5;
+  `src/bot/subagent.py`). Offered only on top-level turns (`run_turn(allow_delegate=True)`), so
+  sub-agents can't recurse. Background delegation (keep-chatting-while-it-runs) is the next mode.
 - **Refactor** — `servers/` at repo root; shared infra extracted to `vaultfs` + `embedding`.
 
-`make check` green: ruff + pyright + **89 tests**. (`desktop/` is Rust — built via `cargo`, not in
+`make check` green: ruff + pyright + **93 tests**. (`desktop/` is Rust — built via `cargo`, not in
 `make check`.)
 
 ## Layout
 
 ```
 src/bot/       core: config, cli (builds host + sources, runs daemon), daemon (router + queue),
-               sources (stdin/socket/timer), client (sipa-client), host (multi-server), loop,
-               context (per-turn pushed retrieval), conversation (rolling summary + compaction),
-               provider (+ token/cost log)
+               sources (stdin/socket/timer), client (sipa-client), host (multi-server; image
+               passthrough), loop (+ delegate), subagent (fan-out), context (per-turn retrieval),
+               conversation (rolling summary + compaction), provider (+ thinking, token/cost log)
 src/vaultfs/   SHARED infra: vault.py (path-safe fs ops), vault_git.py (local git).
 src/embedding/ SHARED infra: Embedder protocol + FastEmbedEmbedder (bge-small). vault_search +
                memory depend downward on it. bot (router) never imports shared infra; no server
