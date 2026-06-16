@@ -50,6 +50,12 @@ def _servers(settings: Settings) -> dict[str, StdioServerParameters]:
             args=["-m", "servers.web.server"],
             env={**base_env, "TAVILY_API_KEY": settings.tavily_api_key},
         )
+    if settings.fs_read_roots:
+        servers["fs"] = StdioServerParameters(
+            command=sys.executable,
+            args=["-m", "servers.fs.server"],
+            env={**base_env, "FS_READ_ROOTS": settings.fs_read_roots},
+        )
     return servers
 
 
