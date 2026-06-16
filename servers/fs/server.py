@@ -8,7 +8,7 @@ import json
 import os
 from pathlib import Path
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import FastMCP, Image
 
 _MAX_CHARS = 100_000
 _ROOTS = [
@@ -38,6 +38,12 @@ def read_file(path: str) -> str:
     except (OSError, UnicodeDecodeError) as exc:
         return f"[error] {exc}"
     return data[:_MAX_CHARS]
+
+
+@mcp.tool()
+def read_image(path: str) -> Image:
+    """Read an image file (png/jpg/gif/webp) so the model can see it. Confined to the read roots."""
+    return Image(path=str(resolve_within(path, _ROOTS)))
 
 
 @mcp.tool()

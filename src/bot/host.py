@@ -8,6 +8,25 @@ from mcp import ClientSession, StdioServerParameters, types
 from mcp.client.stdio import stdio_client
 
 
+def _to_content(blocks: list[Any]) -> Any:
+    """MCP tool-result content → Anthropic content. A plain string when it's all text (the common
+    case, back-compatible), else a list of text/image blocks so images reach the model (vision)."""
+    if all(isinstance(b, types.TextContent) for b in blocks):
+        return "".join(b.text for b in blocks)
+    out: list[dict[str, Any]] = []
+    for b in blocks:
+        if isinstance(b, types.TextContent):
+            out.append({"type": "text", "text": b.text})
+        elif isinstance(b, types.ImageContent):
+            out.append(
+                {
+                    "type": "image",
+                    "source": {"type": "base64", "media_type": b.mimeType, "data": b.data},
+                }
+            )
+    return out
+
+
 class MCPHost:
     """Holds a set of named stdio MCP servers open for the process lifetime."""
 
@@ -44,15 +63,11 @@ class MCPHost:
     def tools_for_model(self) -> list[Any]:
         return self._tools
 
-    async def call_tool(self, name: str, arguments: dict[str, Any]) -> tuple[str, bool]:
-        """Route a tool call to its owning server; return (text, is_error)."""
+    async def call_tool(self, name: str, arguments: dict[str, Any]) -> tuple[Any, bool]:
+        """Route a tool call to its owning server; return (content, is_error). content is a string
+        for text tools, or a list of text/image blocks when the tool returns an image (vision)."""
         session = self._tool_session.get(name)
         if session is None:
             raise RuntimeError(f"unknown tool: {name}")
         result = await session.call_tool(name, arguments)
-        text = "".join(
-            block.text
-            for block in result.content
-            if isinstance(block, types.TextContent)
-        )
-        return text, bool(result.isError)
+        return _to_content(result.content), bool(result.isError)
