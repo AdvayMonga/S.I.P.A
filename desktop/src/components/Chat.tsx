@@ -10,6 +10,7 @@ export function Chat({ onBusyChange }: { onBusyChange: (busy: boolean) => void }
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [pending, setPending] = useState(false);
+  const [approval, setApproval] = useState<{ id: string; question: string } | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -25,6 +26,21 @@ export function Chat({ onBusyChange }: { onBusyChange: (busy: boolean) => void }
       unlisten.then((off) => off());
     };
   }, []);
+
+  // Mid-turn approval questions (e.g. before running a shell command).
+  useEffect(() => {
+    const unlisten = listen<{ id: string; question: string }>("approval-request", (e) => {
+      setApproval(e.payload);
+    });
+    return () => {
+      unlisten.then((off) => off());
+    };
+  }, []);
+
+  async function answer(id: string, choice: string) {
+    setApproval(null);
+    await invoke("approve", { id, answer: choice });
+  }
 
   async function send(e: FormEvent) {
     e.preventDefault();
@@ -58,6 +74,18 @@ export function Chat({ onBusyChange }: { onBusyChange: (busy: boolean) => void }
           ))
         )}
         {pending && <div className="bubble bubble--sipa pending">…</div>}
+        {approval && (
+          <div className="approval">
+            <div className="approval-q">⚠ {approval.question}</div>
+            <div className="approval-actions">
+              <button onClick={() => answer(approval.id, "y")}>Approve</button>
+              <button onClick={() => answer(approval.id, "a")}>Always</button>
+              <button className="deny" onClick={() => answer(approval.id, "n")}>
+                Deny
+              </button>
+            </div>
+          </div>
+        )}
         <div ref={endRef} />
       </section>
       <form className="composer" onSubmit={send}>

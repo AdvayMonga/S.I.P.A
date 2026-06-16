@@ -166,6 +166,45 @@
   opacity: 0.45;
   cursor: default;
 }
+.approval {
+  align-self: stretch;
+  border: 1px solid var(--signal-warm);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #241f17;
+}
+.approval-q {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--signal-warm);
+  white-space: pre-wrap;
+}
+.approval-actions {
+  display: flex;
+  gap: 8px;
+}
+.approval-actions button {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 5px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--signal-warm);
+  background: transparent;
+  color: var(--signal-warm);
+  cursor: pointer;
+}
+.approval-actions button:hover {
+  background: var(--signal-warm);
+  color: #221b10;
+}
+.approval-actions .deny {
+  border-color: var(--line);
+  color: var(--muted);
+}
+
 .composer {
   display: flex;
   gap: 10px;

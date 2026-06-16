@@ -36,12 +36,15 @@ Vault/file edits go through git (auto-committed) → reversible → no prompt; "
 **not** auto-reversible (`curl | sh` can't be git-undone) and a command's risk is hard to classify, so
 shell asks. That's the risk-tiered model: reversible = free, irreversible/external = ask.
 
+## Built since
+
+- **`undo`** — `vault_undo` reverts the last S.I.P.A. vault commit (leaves your own edits alone).
+- **Action summaries** — the system prompt has the bot report each action in one line.
+- **Trust mode + "always" allowlist** — `Approver`, `approval_mode`.
+- **Desktop approval card** — the Tauri `ask` command handles `ASK_PREFIX` questions: emits
+  `approval-request` → the UI shows an Approve/Always/Deny card → the `approve` command sends the
+  answer back over the socket. (Compile-verified; the GUI round-trip wants a live run to confirm.)
+
 ## Deferred (BACKLOG)
 
-- **Desktop approval card** — render `ASK_PREFIX` questions as an Approve/Deny card (the socket
-  protocol is in place; the Tauri client needs to handle it).
-- **`undo`** — revert the last vault/file change (the git commit is already there).
-- **Action summaries** — compact per-action reporting ("edited X, ran Y").
 - **Sandbox** — isolated runtime so the autobuilder can run shell *unattended* safely.
-
-(Trust mode + the "always" allowlist are **built** — `Approver`, `approval_mode`.)

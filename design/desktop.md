@@ -29,7 +29,9 @@ React (src/) ──invoke("ask", {message})──▶ Rust (src-tauri/lib.rs) ─
   holds regardless. A **`subscribe_loop`** (spawned at setup) holds a persistent `:subscribe`
   connection and emits each proactive push (background results, scheduled tasks) as a `sipa-push`
   Tauri event; the frontend `Chat` listens and appends them as messages. Reconnects if the daemon
-  isn't up / the link drops.
+  isn't up / the link drops. **Approval:** `ask` also handles mid-turn `ASK_PREFIX` questions —
+  emits `approval-request`, the UI shows an Approve/Always/Deny card, and the `approve` command
+  sends the answer back over the socket (a oneshot keyed by id in managed `Approvals` state).
 
 ## Run
 

@@ -289,9 +289,10 @@ interactive asks `[y/N]`, unattended (ask=None) denied. Design: `design/code-exe
 **Permission UX (built):** `Approver` — `approval_mode` ask|trust + in-session "always" allowlist
 (Claude-Code-style: free for safe, prompt for risky, allowlist/mode to cut prompts).
 
-**Code-exec follow-ups (BACKLOG):** desktop approval card (render `ASK_PREFIX` questions; terminal
-works, desktop currently denies-safe), `undo` (revert last vault/file change), action summaries, and
-the **sandbox** (autonomous/unattended shell — the autobuilder).
+**Built since:** `vault_undo` (revert last change), per-action summaries (system prompt), and the
+**desktop approval card** (Tauri `ask` handles `ASK_PREFIX` → Approve/Always/Deny card → `approve`
+command; compile-verified, wants a live GUI run). **Remaining (BACKLOG):** the **sandbox**
+(autonomous/unattended shell — the autobuilder).
 
 **Base toolbox left:** filesystem write (reversible via git), computer use (tier 3). Connectors
 (Gmail/Calendar/Drive) separately.

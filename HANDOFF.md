@@ -60,6 +60,8 @@ only after the bot works (bot → loop → autonomy).
   `EXEC_ROOT`, off by default, timeout/cap). `run_shell` ∈ `loop.APPROVAL_REQUIRED`; `Approver`
   (`approval_mode` ask|trust + in-session "always" allowlist) gates it: interactive asks
   `[y]/[a]/[N]`; **unattended turns (ask=None) are denied** (no autonomous shell sans sandbox).
+  Plus `vault_undo` (revert last change), per-action summaries, and the desktop approval card
+  (Tauri `ask`→`approval-request`→Approve/Always/Deny→`approve`; compile-verified, GUI run pending).
 - **Refactor** — `servers/` at repo root; shared infra extracted to `vaultfs` + `embedding`.
 
 `make check` green: ruff + pyright + **106 tests**. (`desktop/` is Rust — built via `cargo`, not in
