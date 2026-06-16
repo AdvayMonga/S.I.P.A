@@ -12,6 +12,7 @@ class Settings(BaseSettings):
 
     anthropic_api_key: str
     vault_path: Path
+    tavily_api_key: str = ""  # optional; the web-search server spawns only when set
     index_path: Path = Path("data/index.db")
     vault_search_db_path: Path = Path("data/vault_search.db")
     scheduler_state_path: Path = Path("data/scheduler_state.json")

@@ -255,8 +255,16 @@ accumulates session token totals and logs per-call + running **dollar cost** (`c
 config; defaults = Opus 4.8 $5/$25). Decided: auto-builder coding will bill to the Max subscription
 via Claude Code (`DECISIONS.md`).
 
+## M13: web search — DONE (2026-06-15)
+
+`web` MCP server: `web_search(query, max_results)` over a swappable `SearchBackend` protocol
+(`TavilyBackend` today; SearXNG/Brave later — one-class change). Gives the bot current/external info
+→ sourced research notes. Spawns only when `TAVILY_API_KEY` (in `.env`) is set. Live-verified against
+Tavily. `web_fetch` (page extract) is the natural follow-up. Design: `design/web-search.md`.
+
 ## Later (not started)
 
-Real-tokenizer context budget + hard spend ceiling, graph expansion, incremental/mtime reindex,
+`web_fetch` (page extract), a self-hosted SearXNG backend (full OSS), real-tokenizer context budget +
+hard spend ceiling, graph expansion, incremental/mtime reindex,
 memory's own local-only git, wiring `LocalProvider` to a real runtime, and — only if independent
 per-session episodes are added later — relevance/decay-based pruning of those (`BACKLOG.md`).

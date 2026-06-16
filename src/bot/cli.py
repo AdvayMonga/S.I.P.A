@@ -22,7 +22,7 @@ def _servers(settings: Settings) -> dict[str, StdioServerParameters]:
         "VAULT_PATH": str(settings.vault_path),
         "PATH": os.environ.get("PATH", ""),
     }
-    return {
+    servers = {
         "obsidian": StdioServerParameters(
             command=sys.executable,
             args=["-m", "servers.obsidian.server"],
@@ -44,6 +44,13 @@ def _servers(settings: Settings) -> dict[str, StdioServerParameters]:
             env={**base_env, "MEMORY_DB": str(settings.memory_db_path.resolve())},
         ),
     }
+    if settings.tavily_api_key:
+        servers["web"] = StdioServerParameters(
+            command=sys.executable,
+            args=["-m", "servers.web.server"],
+            env={**base_env, "TAVILY_API_KEY": settings.tavily_api_key},
+        )
+    return servers
 
 
 def _make_handler(convo: Conversation, provider: ModelProvider, host: MCPHost) -> Handler:

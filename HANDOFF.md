@@ -11,7 +11,7 @@ server; the core (`src/bot`) only routes turns and spawns servers, never imports
 `VISION.md`. The self-improving auto-builder (`siloop.md` etc.) is **not built** — built by hand
 only after the bot works (bot → loop → autonomy).
 
-## Status: M0–M12 done, all on GitHub
+## Status: M0–M13 done, all on GitHub
 
 - **M0** — loop: terminal → Claude → MCP host → vault. Live-verified.
 - **M1** — Obsidian server: 10 `vault_` tools + atomic writes + frontmatter validation + vault git.
@@ -43,9 +43,11 @@ only after the bot works (bot → loop → autonomy).
   latest episode (`_persist_session` / `_resume_session`).
 - **M12** — loop cap (warn @15 iterations, hard stop @40) + per-call/session **cost in dollars**
   (`cost_usd`, prices in config). Auto-builder will bill to the Max subscription (`DECISIONS.md`).
+- **M13** — web search: `web` server, `web_search` over a swappable `SearchBackend` (Tavily). Gives
+  the bot current/external info → sourced research notes. `TAVILY_API_KEY` in `.env`; live-verified.
 - **Refactor** — `servers/` at repo root; shared infra extracted to `vaultfs` + `embedding`.
 
-`make check` green: ruff + pyright + **76 tests**. (`desktop/` is Rust — built via `cargo`, not in
+`make check` green: ruff + pyright + **79 tests**. (`desktop/` is Rust — built via `cargo`, not in
 `make check`.)
 
 ## Layout
@@ -64,6 +66,7 @@ servers/       capabilities (independent MCP processes, spawned by the host):
   scheduler/     recurring-task store (vault note) + tools
   vault_search/  chunk, index (hybrid RRF), server
   memory/        store (profile+recall tiers, one SQLite table) + 9 memory_ tools
+  web/           web_search over a swappable SearchBackend (Tavily); spawns only when keyed
 desktop/       Tauri v2 dashboard (React+Vite+TS frontend + Rust shell) → daemon socket. Outside pkg.
                status bar (state-pulse signature) + configurable PANELS (placeholder) + chat.
 tests/
@@ -74,7 +77,8 @@ data/          index.db, vault_search.db, scheduler_state.json (rebuildable) + m
 The daemon's Unix socket lives at `~/.sipa/sipa.sock` (fixed abs path so cross-process clients —
 desktop app, `sipa-client` — find it without knowing the repo cwd; `SIPA_SOCKET` overrides).
 
-Four servers run per session: obsidian, scheduler, vault_search, memory → 25 aggregated tools.
+Servers per session: obsidian, scheduler, vault_search, memory (+ web when `TAVILY_API_KEY` is
+set) → 25 aggregated tools, 26 with web.
 
 ## How to run / verify
 
