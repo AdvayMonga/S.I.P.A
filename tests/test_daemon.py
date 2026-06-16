@@ -10,6 +10,7 @@ from bot.cli import _make_handler
 from bot.conversation import Conversation
 from bot.daemon import Daemon
 from bot.sources import SocketSource, TimerSource
+from bot.subagent import BackgroundDelegator
 
 
 def test_router_delivers_reply() -> None:
@@ -113,7 +114,9 @@ def test_real_handler_wiring_over_socket() -> None:
     sock = f"/tmp/sipa_wiring_{os.getpid()}.sock"
 
     async def scenario() -> None:
-        handle = _make_handler(Conversation(), _FakeProvider(), _FakeHost())  # type: ignore[arg-type]
+        provider, fhost = _FakeProvider(), _FakeHost()
+        delegator = BackgroundDelegator(provider, fhost)  # type: ignore[arg-type]
+        handle = _make_handler(Conversation(), provider, fhost, delegator)  # type: ignore[arg-type]
         daemon = Daemon(handle)
         router = asyncio.create_task(daemon._router())
         source = asyncio.create_task(SocketSource(sock).run(daemon.submit))

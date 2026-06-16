@@ -48,12 +48,13 @@ only after the bot works (bot → loop → autonomy).
 - **M14** — base toolbox tier 1: **adaptive thinking** (provider, default on), **`fs` server**
   (`read_file`/`list_dir`/`read_image`, scoped to `FS_READ_ROOTS`, path-safe), and **vision** (host
   passes image content from tool results → the model sees images). Live-verified.
-- **M15** — sub-agents (fan-out): `delegate` tool → isolated sub-agent loops run in parallel (cap 5;
-  `src/bot/subagent.py`). Offered only on top-level turns (`run_turn(allow_delegate=True)`), so
-  sub-agents can't recurse. Background delegation (keep-chatting-while-it-runs) is the next mode.
+- **M15** — sub-agents (`src/bot/subagent.py`): `delegate` (parallel fan-out, cap 5) +
+  `delegate_background` (detached worker → keep chatting, prints result on done). Offered only on
+  top-level turns (`run_turn(allow_delegate=True)`); sub-agents can't recurse. `BackgroundDelegator`
+  wired in `cli`. v1: background result prints to the daemon terminal (not per-source yet).
 - **Refactor** — `servers/` at repo root; shared infra extracted to `vaultfs` + `embedding`.
 
-`make check` green: ruff + pyright + **93 tests**. (`desktop/` is Rust — built via `cargo`, not in
+`make check` green: ruff + pyright + **95 tests**. (`desktop/` is Rust — built via `cargo`, not in
 `make check`.)
 
 ## Layout

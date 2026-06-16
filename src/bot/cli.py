@@ -15,6 +15,7 @@ from .host import MCPHost
 from .loop import run_turn
 from .provider import ModelProvider, make_provider
 from .sources import ShutdownSignal, SocketSource, StdinSource, TimerSource
+from .subagent import BackgroundDelegator
 
 
 def _servers(settings: Settings) -> dict[str, StdioServerParameters]:
@@ -59,11 +60,18 @@ def _servers(settings: Settings) -> dict[str, StdioServerParameters]:
     return servers
 
 
-def _make_handler(convo: Conversation, provider: ModelProvider, host: MCPHost) -> Handler:
+def _make_handler(
+    convo: Conversation,
+    provider: ModelProvider,
+    host: MCPHost,
+    delegator: BackgroundDelegator,
+) -> Handler:
     """The turn-processor the router calls per event — one shared conversation, serialized."""
 
     async def handle(text: str) -> str:
-        return await run_turn(convo, text, provider, host, allow_delegate=True)
+        return await run_turn(
+            convo, text, provider, host, allow_delegate=True, spawn_background=delegator.start
+        )
 
     return handle
 
@@ -138,7 +146,8 @@ async def _main() -> None:
     async with MCPHost(_servers(settings)) as host:
         convo = Conversation()
         await _resume_session(convo, host)
-        daemon = Daemon(_make_handler(convo, provider, host))
+        delegator = BackgroundDelegator(provider, host)
+        daemon = Daemon(_make_handler(convo, provider, host, delegator))
         sources = [
             SocketSource(str(settings.socket_path.resolve())),
             TimerSource(_make_fire_due(host), settings.timer_interval),

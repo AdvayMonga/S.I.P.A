@@ -6,7 +6,7 @@ from anthropic.types import TextBlock, ToolUseBlock
 
 from bot.conversation import Conversation
 from bot.loop import run_turn
-from bot.subagent import run_subagents
+from bot.subagent import BackgroundDelegator, run_subagents
 
 
 class FakeHost:
@@ -80,3 +80,56 @@ def test_sub_agents_cannot_delegate() -> None:
 
     asyncio.run(run_subagents(["t"], Recorder(), FakeHost()))  # type: ignore[arg-type]
     assert seen == [False]
+
+
+def test_background_delegator_returns_immediately_then_notifies() -> None:
+    async def scenario() -> None:
+        delivered: list[tuple[int, str, str]] = []
+
+        async def notify(task_id: int, task: str, result: str) -> None:
+            delivered.append((task_id, task, result))
+
+        d = BackgroundDelegator(EchoProvider(), FakeHost(), notify=notify)  # type: ignore[arg-type]
+        ack = await d.start("research X")
+        assert "#1" in ack  # returned right away with an ack — not the result
+        assert delivered == []  # result hasn't arrived yet
+        await asyncio.gather(*d._tasks)  # wait for the detached worker
+        assert delivered == [(1, "research X", "done: research X")]
+
+    asyncio.run(scenario())
+
+
+def test_background_delegate_path_through_run_turn() -> None:
+    started: list[str] = []
+
+    async def spawn(task: str) -> str:
+        started.append(task)
+        return f"started: {task}"
+
+    class BgProvider:
+        async def generate(self, *, system: str, messages: list, tools: list) -> Any:
+            last = messages[-1]["content"]
+            if isinstance(last, str):  # top-level user turn → delegate in background
+                block = ToolUseBlock(
+                    type="tool_use",
+                    id="b1",
+                    name="delegate_background",
+                    input={"task": "deep dive"},
+                )
+                return SimpleNamespace(content=[block], stop_reason="tool_use")
+            return SimpleNamespace(
+                content=[TextBlock(type="text", text="on it")], stop_reason="end"
+            )
+
+    reply = asyncio.run(
+        run_turn(
+            Conversation(),
+            "do a deep dive",
+            BgProvider(),  # type: ignore[arg-type]
+            FakeHost(),  # type: ignore[arg-type]
+            allow_delegate=True,
+            spawn_background=spawn,
+        )
+    )
+    assert reply == "on it"
+    assert started == ["deep dive"]  # the background task was kicked off

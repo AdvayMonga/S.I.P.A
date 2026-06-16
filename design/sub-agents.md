@@ -26,14 +26,21 @@ parts run concurrently so it's faster, and each sub-agent's context stays tight.
 The tool description tells the model: use it only for genuinely independent work; do small or
 sequential things itself.
 
-## Mode 2 — background delegation (next, deferred)
+## Mode 2 — background delegation (built)
 
-"Kick off the research, hand me back control, ping me when it's done." The sub-agent runs as a
-**detached background task**; the main loop returns immediately; on completion the result is posted to
-the **event router** as an event — exactly like the wall-clock timer firing (M8). The architecture
-already has the shape for this (the router is a multi-source async dispatcher); we add a background
-spawn + a completion event source. Needs a *shared* concurrency cap (the sync mode's per-call
-semaphore suffices only because the daemon runs one turn at a time today). See `BACKLOG.md`.
+"Kick off the research, hand me back control, ping me when it's done." The model calls
+**`delegate_background(task)`**; `BackgroundDelegator.start` spawns a **detached** sub-agent
+(`asyncio.create_task`, capped by its own semaphore), returns an ack immediately, and the main turn
+ends — you keep control. When the worker finishes it calls `notify(id, task, result)` (default: print
+to the daemon terminal). Both `delegate` and `delegate_background` are offered only on top-level turns
+(`allow_delegate`); `spawn_background` is threaded in from `cli`.
+
+**Known limits (v1):** the result prints to the daemon's terminal (the same proactive-output
+convention the timer uses) — it isn't routed per-source to a socket/desktop client, and it isn't
+folded back into the main conversation (the sub-agent can `memory_remember` findings if needed).
+Routing completions through the event router as proper per-source events (so the desktop app gets
+them, and the bot can present them in context) is the refinement. Background + fan-out have *separate*
+concurrency caps for now. See `BACKLOG.md`.
 
 ## Costs & caveats
 

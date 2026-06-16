@@ -2,6 +2,7 @@
 
 import json
 import logging
+from collections.abc import Awaitable, Callable
 from typing import Any, cast
 
 from anthropic.types import TextBlock, ToolUseBlock
@@ -10,7 +11,7 @@ from .context import assemble_context
 from .conversation import Conversation, maybe_compact
 from .host import MCPHost
 from .provider import ModelProvider
-from .subagent import DELEGATE_TOOL, run_subagents
+from .subagent import DELEGATE_BACKGROUND_TOOL, DELEGATE_TOOL, run_subagents
 
 _log = logging.getLogger("sipa.loop")
 
@@ -32,9 +33,11 @@ async def run_turn(
     host: MCPHost,
     *,
     allow_delegate: bool = False,
+    spawn_background: Callable[[str], Awaitable[str]] | None = None,
 ) -> str:
     """Run one user turn to completion, mutating `convo` in place. `allow_delegate` offers the
-    `delegate` tool — only top-level turns set it, so sub-agents can't recurse."""
+    `delegate`/`delegate_background` tools — only top-level turns set it, so sub-agents can't
+    recurse. `spawn_background` starts a detached background sub-agent."""
     await maybe_compact(convo, provider)  # bound the window before we build the turn
     # Enrich the retrieval query with the rolling summary so follow-ups retrieve against state.
     query = f"{convo.summary[-500:]} {user_message}".strip() if convo.summary else user_message
@@ -43,7 +46,9 @@ async def run_turn(
     if convo.summary:
         system = f"{system}\n\n# Conversation so far\n{convo.summary}"
 
-    tools = [*host.tools_for_model(), DELEGATE_TOOL] if allow_delegate else host.tools_for_model()
+    tools = host.tools_for_model()
+    if allow_delegate:
+        tools = [*tools, DELEGATE_TOOL, DELEGATE_BACKGROUND_TOOL]
     convo.messages.append({"role": "user", "content": user_message})
     iterations = 0
     while True:
@@ -71,6 +76,11 @@ async def run_turn(
             if block.name == "delegate":
                 results = await run_subagents(args.get("tasks", []), provider, host)
                 text, is_error = json.dumps(results), False
+            elif block.name == "delegate_background":
+                if spawn_background is None:
+                    text, is_error = "background delegation unavailable", True
+                else:
+                    text, is_error = await spawn_background(args.get("task", "")), False
             else:
                 text, is_error = await host.call_tool(block.name, args)
             tool_results.append(
