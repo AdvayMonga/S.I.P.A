@@ -262,9 +262,19 @@ via Claude Code (`DECISIONS.md`).
 → sourced research notes. Spawns only when `TAVILY_API_KEY` (in `.env`) is set. Live-verified against
 Tavily. `web_fetch` (page extract) is the natural follow-up. Design: `design/web-search.md`.
 
+## M14: base toolbox tier 1 — DONE (2026-06-15)
+
+Toward "everything Claude can do" (each capability a server / loop feature). **Adaptive thinking**
+on by default (`config.thinking`, provider). **`fs` server** — `read_file`/`list_dir`/`read_image`
+confined to `FS_READ_ROOTS` (path-safe, read-only). **Vision** — `host._to_content` passes image
+content from tool results to the model. Design: `design/local-files.md`. Live-verified.
+
+**Base toolbox left:** code execution / filesystem write (tier 2 — gated by the sandbox/autonomy
+decision), computer use + sub-agents (tier 3). Connectors (Gmail/Calendar/Drive) separately.
+
 ## Later (not started)
 
-`web_fetch` (page extract), a self-hosted SearXNG backend (full OSS), real-tokenizer context budget +
+A self-hosted SearXNG backend (full OSS), web-image vision, real-tokenizer context budget +
 hard spend ceiling, graph expansion, incremental/mtime reindex,
 memory's own local-only git, wiring `LocalProvider` to a real runtime, and — only if independent
 per-session episodes are added later — relevance/decay-based pruning of those (`BACKLOG.md`).
