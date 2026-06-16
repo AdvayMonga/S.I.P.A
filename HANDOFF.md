@@ -11,7 +11,7 @@ server; the core (`src/bot`) only routes turns and spawns servers, never imports
 `VISION.md`. The self-improving auto-builder (`siloop.md` etc.) is **not built** — built by hand
 only after the bot works (bot → loop → autonomy).
 
-## Status: M0–M16 done, all on GitHub
+## Status: M0–M17 done, all on GitHub
 
 - **M0** — loop: terminal → Claude → MCP host → vault. Live-verified.
 - **M1** — Obsidian server: 10 `vault_` tools + atomic writes + frontmatter validation + vault git.
@@ -55,9 +55,13 @@ only after the bot works (bot → loop → autonomy).
   sources register); a socket `:subscribe` connection is a push channel. Background results +
   scheduled tasks route through the router (bot presents in context) then broadcast — reaching the
   terminal AND the desktop app (persistent `:subscribe` connection → `sipa-push` event → chat).
+- **M17** — interactive code execution: **approval round-trip** (`Ask` threaded source→router→
+  `run_turn`; terminal + socket `ASK_PREFIX`) + **`exec` server** (`run_shell`, scoped to
+  `EXEC_ROOT`, off by default, timeout/cap). `run_shell` ∈ `loop.APPROVAL_REQUIRED`: interactive
+  turns ask `[y/N]`; **unattended turns (ask=None) are denied** (no autonomous shell sans sandbox).
 - **Refactor** — `servers/` at repo root; shared infra extracted to `vaultfs` + `embedding`.
 
-`make check` green: ruff + pyright + **97 tests**. (`desktop/` is Rust — built via `cargo`, not in
+`make check` green: ruff + pyright + **104 tests**. (`desktop/` is Rust — built via `cargo`, not in
 `make check`.)
 
 ## Layout
@@ -78,6 +82,7 @@ servers/       capabilities (independent MCP processes, spawned by the host):
   memory/        store (profile+recall tiers, one SQLite table) + 9 memory_ tools
   web/           web_search + web_fetch over a swappable WebBackend (Tavily); spawns only when keyed
   fs/            read_file/list_dir/read_image, confined to FS_READ_ROOTS; spawns only when set
+  exec/          run_shell in EXEC_ROOT (off by default); approval-gated, unattended-denied
 desktop/       Tauri v2 dashboard (React+Vite+TS frontend + Rust shell) → daemon socket. Outside pkg.
                status bar (state-pulse signature) + configurable PANELS (placeholder) + chat.
 tests/

@@ -24,5 +24,6 @@ class Settings(BaseSettings):
     max_tokens: int = 16000  # non-streaming default; gives adaptive thinking headroom
     thinking: bool = True  # adaptive thinking (better reasoning; thinking tokens billed as output)
     fs_read_roots: str = ""  # os.pathsep-separated dirs the fs server may read; empty = no access
+    exec_root: str = ""  # working dir for the shell server; empty = no shell (approval-gated)
     input_price_per_mtok: float = 5.0  # claude-opus-4-8 pricing; set to your plan/model rate
     output_price_per_mtok: float = 25.0

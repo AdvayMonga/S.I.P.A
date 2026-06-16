@@ -20,8 +20,8 @@ WARN_ITERATIONS = 15  # soft: log and keep going — don't interrupt a legitimat
 MAX_ITERATIONS = 40  # hard backstop: stop a runaway turn (tool calls that never converge)
 
 # Tools whose effects are irreversible/external — gated behind user approval. Reversible tools
-# (vault writes auto-commit to git, reads, search) run freely. The exec/shell tool joins this set.
-APPROVAL_REQUIRED: set[str] = set()
+# (vault writes auto-commit to git, reads, search) run freely. `run_shell` is the first member.
+APPROVAL_REQUIRED: set[str] = {"run_shell"}
 
 
 async def _approved(name: str, args: dict[str, Any], ask: Ask | None) -> bool:

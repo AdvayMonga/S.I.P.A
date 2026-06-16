@@ -280,8 +280,18 @@ immediately (keep chatting), prints the result on completion. Both offered only 
 **Refinements (BACKLOG):** route background completions through the event router per-source (desktop
 app gets them; bot presents in context); shared cap across fan-out + background.
 
-**Base toolbox left:** code execution / filesystem write (tier 2 — gated by the sandbox/autonomy
-decision), computer use (tier 3). Connectors (Gmail/Calendar/Drive) separately.
+## M17: interactive code execution — DONE (2026-06-16)
+
+Approval round-trip (`Ask` threaded source→router→`run_turn`; `_approved` gate) + `exec` server
+(`run_shell`, scoped to `EXEC_ROOT`, off by default, timeout/cap). `run_shell` ∈ `APPROVAL_REQUIRED`:
+interactive asks `[y/N]`, unattended (ask=None) denied. Design: `design/code-execution.md`.
+
+**Code-exec follow-ups (BACKLOG):** desktop approval card (render `ASK_PREFIX` questions), `undo`
+(revert last vault/file change), action summaries, trust-mode (skip shell prompt), and the **sandbox**
+(autonomous/unattended shell — the autobuilder).
+
+**Base toolbox left:** filesystem write (reversible via git), computer use (tier 3). Connectors
+(Gmail/Calendar/Drive) separately.
 
 ## Later (not started)
 

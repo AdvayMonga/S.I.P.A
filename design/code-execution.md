@@ -1,0 +1,44 @@
+# design/code-execution.md
+
+Interactive code execution (option A) — the big capability jump, built with the safety layers that
+keep VISION's "autonomy is the last thing that turns on" intact. The autonomous/sandboxed version
+(for the autobuilder) is a separate, later thing; this is the supervised, on-your-real-machine path.
+
+## The safety layers
+
+1. **Off by default.** The `exec` server spawns only when `EXEC_ROOT` is set. No root → no shell.
+2. **Scoping.** `run_shell(command)` runs with `cwd = EXEC_ROOT`, a 30s timeout, and capped output.
+3. **Approval gate.** `run_shell` is in `loop.APPROVAL_REQUIRED`. Before it runs, the loop calls
+   `_approved` → asks the user (`ask`) `[y/N]`. Reversible tools (vault writes auto-commit to git,
+   reads, search) are **not** gated — they run freely.
+4. **Unattended-block.** `ask is None` on timer/background turns → `_approved` returns False → shell
+   is **denied** when no human is watching. No autonomous shell without a sandbox.
+
+## Approval round-trip (the reusable primitive)
+
+A turn can ask the user mid-flight and wait. `Ask` is threaded source → `submit` → `Event.ask` →
+router → `Handler` → `run_turn(ask=)` → `_approved`.
+
+- **Terminal** (`StdinSource`): `ask` prints `sipa? …` and reads the answer on `approve>`. Works
+  because the source's main loop is blocked awaiting the turn, so only `ask` is reading stdin.
+- **Socket** (`SocketSource`): `ask` writes the question prefixed with `ASK_PREFIX` (`\x01?`) so the
+  client knows it's a question (not a reply); the client's next line is the answer.
+- **Unattended** (timer, background): no `ask` → `Event.ask is None` → gate denies.
+
+This primitive is reused by anything that needs to ask the user (reminders, clarifications), not just
+code execution.
+
+## Why shell asks but file edits don't
+
+Vault/file edits go through git (auto-committed) → reversible → no prompt; "undo" reverts. Shell is
+**not** auto-reversible (`curl | sh` can't be git-undone) and a command's risk is hard to classify, so
+shell asks. That's the risk-tiered model: reversible = free, irreversible/external = ask.
+
+## Deferred (BACKLOG)
+
+- **Desktop approval card** — render `ASK_PREFIX` questions as an Approve/Deny card (the socket
+  protocol is in place; the Tauri client needs to handle it).
+- **`undo`** — revert the last vault/file change (the git commit is already there).
+- **Action summaries** — compact per-action reporting ("edited X, ran Y").
+- **Trust mode** — a setting to run shell without prompting (you accept the risk, scoped).
+- **Sandbox** — isolated runtime so the autobuilder can run shell *unattended* safely.

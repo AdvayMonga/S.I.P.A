@@ -57,6 +57,12 @@ def _servers(settings: Settings) -> dict[str, StdioServerParameters]:
             args=["-m", "servers.fs.server"],
             env={**base_env, "FS_READ_ROOTS": settings.fs_read_roots},
         )
+    if settings.exec_root:
+        servers["exec"] = StdioServerParameters(
+            command=sys.executable,
+            args=["-m", "servers.exec.server"],
+            env={**base_env, "EXEC_ROOT": settings.exec_root},
+        )
     return servers
 
 
