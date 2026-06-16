@@ -10,7 +10,7 @@ from mcp import StdioServerParameters
 
 from .config import Settings
 from .conversation import Conversation, finalize_summary
-from .daemon import Daemon, Handler, Submit
+from .daemon import Daemon, Handler, Respond, Submit
 from .host import MCPHost
 from .loop import run_turn
 from .provider import ModelProvider, make_provider
@@ -76,9 +76,10 @@ def _make_handler(
     return handle
 
 
-def _make_fire_due(host: MCPHost):
+def _make_fire_due(host: MCPHost, notify: Respond):
     """Timer tick: submit each due scheduled task. on-open tasks fire only on the first (startup)
-    tick — with a persistent daemon, 'open' means startup, not every wall-clock check."""
+    tick — with a persistent daemon, 'open' means startup, not every wall-clock check. Output is
+    broadcast (proactive), so it reaches every connected channel, not just the terminal."""
     first = True
 
     async def fire_due(submit: Submit) -> None:
@@ -90,7 +91,7 @@ def _make_fire_due(host: MCPHost):
 
             async def respond(reply: str, task: dict = task) -> None:
                 await host.call_tool("mark_task_ran", {"id": task["id"]})
-                print(f"[scheduled · {task['cadence']}] {reply}")
+                await notify(f"[scheduled · {task['cadence']}] {reply}")
 
             await submit(task["prompt"], respond)
         first = False
@@ -148,9 +149,20 @@ async def _main() -> None:
         await _resume_session(convo, host)
         delegator = BackgroundDelegator(provider, host)
         daemon = Daemon(_make_handler(convo, provider, host, delegator))
+
+        async def present_background(task_id: int, task: str, result: str) -> None:
+            # Route the finished result through the router so the bot presents it in context (lands
+            # in the conversation) and `daemon.notify` broadcasts it to every connected channel.
+            note = (
+                f"[A background task you started just finished — #{task_id}: {task}]\n\n"
+                f"Result:\n{result}\n\nTell the user it's done and the key takeaway, briefly."
+            )
+            await daemon.submit(note, daemon.notify)
+
+        delegator.set_notify(present_background)
         sources = [
             SocketSource(str(settings.socket_path.resolve())),
-            TimerSource(_make_fire_due(host), settings.timer_interval),
+            TimerSource(_make_fire_due(host, daemon.notify), settings.timer_interval),
             StdinSource(),
         ]
         try:

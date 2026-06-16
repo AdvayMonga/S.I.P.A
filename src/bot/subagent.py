@@ -88,6 +88,10 @@ class BackgroundDelegator:
         self._count = 0
         self._tasks: set[asyncio.Task[None]] = set()  # hold refs so tasks aren't GC'd mid-flight
 
+    def set_notify(self, notify: Notify) -> None:
+        """Replace how finished results are delivered (e.g. route through the event router)."""
+        self._notify = notify
+
     async def start(self, task: str) -> str:
         """Kick off `task` in the background; return an ack immediately."""
         self._count += 1

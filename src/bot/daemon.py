@@ -11,6 +11,8 @@ from typing import Protocol
 Respond = Callable[[str], Awaitable[None]]
 Submit = Callable[[str, Respond], Awaitable[None]]
 Handler = Callable[[str], Awaitable[str]]
+Sink = Callable[[str], Awaitable[None]]  # delivers a proactive message to one output channel
+Registrar = Callable[[Sink], Callable[[], None]]  # register a sink → returns its unregister fn
 
 
 @dataclass
@@ -22,16 +24,31 @@ class Event:
 
 
 class Source(Protocol):
-    async def run(self, submit: Submit) -> None: ...
+    async def run(self, submit: Submit, register: Registrar) -> None: ...
 
 
 class Daemon:
     def __init__(self, handle: Handler) -> None:
         self._handle = handle
         self._queue: asyncio.Queue[Event] = asyncio.Queue()
+        self._sinks: set[Sink] = set()  # connected output channels for proactive messages
 
     async def submit(self, text: str, respond: Respond) -> None:
         await self._queue.put(Event(text, respond))
+
+    def register_sink(self, sink: Sink) -> Callable[[], None]:
+        """A source registers an output channel; returns a fn to unregister it on disconnect."""
+        self._sinks.add(sink)
+        return lambda: self._sinks.discard(sink)
+
+    async def notify(self, message: str) -> None:
+        """Push an unsolicited message to every connected channel (terminal + socket subscribers).
+        This is the proactive-delivery primitive: background results, scheduled tasks, reminders."""
+        for sink in list(self._sinks):
+            try:
+                await sink(message)
+            except Exception:  # a dead client must not block delivery to the others
+                pass
 
     async def _router(self) -> None:
         while True:
@@ -48,4 +65,4 @@ class Daemon:
         async with asyncio.TaskGroup() as tg:
             tg.create_task(self._router())
             for source in sources:
-                tg.create_task(source.run(self.submit))
+                tg.create_task(source.run(self.submit, self.register_sink))

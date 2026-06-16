@@ -69,7 +69,7 @@ def test_socket_round_trip() -> None:
 
         daemon = Daemon(handle)
         router = asyncio.create_task(daemon._router())
-        source = asyncio.create_task(SocketSource(sock).run(daemon.submit))
+        source = asyncio.create_task(SocketSource(sock).run(daemon.submit, daemon.register_sink))
         await asyncio.sleep(0.05)  # let the server bind
 
         reader, writer = await asyncio.open_unix_connection(sock)
@@ -119,7 +119,7 @@ def test_real_handler_wiring_over_socket() -> None:
         handle = _make_handler(Conversation(), provider, fhost, delegator)  # type: ignore[arg-type]
         daemon = Daemon(handle)
         router = asyncio.create_task(daemon._router())
-        source = asyncio.create_task(SocketSource(sock).run(daemon.submit))
+        source = asyncio.create_task(SocketSource(sock).run(daemon.submit, daemon.register_sink))
         await asyncio.sleep(0.05)
 
         reader, writer = await asyncio.open_unix_connection(sock)
@@ -145,9 +145,68 @@ def test_timer_fires_repeatedly() -> None:
             nonlocal ticks
             ticks += 1
 
-        source = asyncio.create_task(TimerSource(on_tick, interval=0.02).run(submit=None))  # type: ignore[arg-type]
+        source = asyncio.create_task(
+            TimerSource(on_tick, interval=0.02).run(None, _noreg)  # type: ignore[arg-type]
+        )
         await asyncio.sleep(0.1)
         source.cancel()
         assert ticks >= 3  # fired at startup + on the interval
 
     asyncio.run(scenario())
+
+
+def _noreg(_sink: Any) -> Any:
+    return lambda: None
+
+
+def test_notify_broadcasts_to_registered_sinks() -> None:
+    async def scenario() -> None:
+        daemon = Daemon(lambda t: _echo(t))
+        got_a: list[str] = []
+        got_b: list[str] = []
+
+        async def sink_a(msg: str) -> None:
+            got_a.append(msg)
+
+        async def sink_b(msg: str) -> None:
+            got_b.append(msg)
+
+        remove_a = daemon.register_sink(sink_a)
+        daemon.register_sink(sink_b)
+        await daemon.notify("ping")
+        remove_a()  # unregister A
+        await daemon.notify("pong")
+        assert got_a == ["ping"]  # A only saw the first
+        assert got_b == ["ping", "pong"]  # B saw both
+
+    asyncio.run(scenario())
+
+
+async def _echo(text: str) -> str:
+    return text
+
+
+def test_subscribe_connection_receives_pushes() -> None:
+    sock = f"/tmp/sipa_sub_{os.getpid()}.sock"
+
+    async def scenario() -> None:
+        daemon = Daemon(_echo)
+        router = asyncio.create_task(daemon._router())
+        source = asyncio.create_task(SocketSource(sock).run(daemon.submit, daemon.register_sink))
+        await asyncio.sleep(0.05)
+
+        reader, writer = await asyncio.open_unix_connection(sock)
+        writer.write(b":subscribe\n")  # become a push channel
+        await writer.drain()
+        await asyncio.sleep(0.05)  # let the subscribe register its sink
+        await daemon.notify("background done")
+        line = await asyncio.wait_for(reader.readline(), 1)
+        assert line.decode().strip() == "background done"
+        writer.close()
+        router.cancel()
+        source.cancel()
+
+    try:
+        asyncio.run(scenario())
+    finally:
+        Path(sock).unlink(missing_ok=True)
