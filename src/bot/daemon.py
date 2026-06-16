@@ -8,19 +8,30 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Protocol
 
+ASK_PREFIX = "\x01?"  # a socket line starting with this is a question, not a reply (clients prompt)
+
 Respond = Callable[[str], Awaitable[None]]
-Submit = Callable[[str, Respond], Awaitable[None]]
-Handler = Callable[[str], Awaitable[str]]
+Ask = Callable[[str], Awaitable[str]]  # ask the user a question mid-turn; await their answer
 Sink = Callable[[str], Awaitable[None]]  # delivers a proactive message to one output channel
 Registrar = Callable[[Sink], Callable[[], None]]  # register a sink → returns its unregister fn
 
 
+class Submit(Protocol):
+    async def __call__(self, text: str, respond: Respond, ask: Ask | None = None) -> None: ...
+
+
+class Handler(Protocol):
+    async def __call__(self, text: str, ask: Ask | None = None) -> str: ...
+
+
 @dataclass
 class Event:
-    """An inbound request: text to process + how to deliver the reply to its origin."""
+    """An inbound request: text to process, how to reply, and (if interactive) how to ask back.
+    `ask is None` marks an unattended event (timer, background) — no human to answer."""
 
     text: str
     respond: Respond
+    ask: Ask | None = None
 
 
 class Source(Protocol):
@@ -33,8 +44,8 @@ class Daemon:
         self._queue: asyncio.Queue[Event] = asyncio.Queue()
         self._sinks: set[Sink] = set()  # connected output channels for proactive messages
 
-    async def submit(self, text: str, respond: Respond) -> None:
-        await self._queue.put(Event(text, respond))
+    async def submit(self, text: str, respond: Respond, ask: Ask | None = None) -> None:
+        await self._queue.put(Event(text, respond, ask))
 
     def register_sink(self, sink: Sink) -> Callable[[], None]:
         """A source registers an output channel; returns a fn to unregister it on disconnect."""
@@ -54,7 +65,7 @@ class Daemon:
         while True:
             event = await self._queue.get()
             try:
-                reply = await self._handle(event.text)
+                reply = await self._handle(event.text, event.ask)
             except Exception as exc:  # one bad turn must never kill the daemon
                 reply = f"[error] {exc}"
             await event.respond(reply)

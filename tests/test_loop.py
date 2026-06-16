@@ -5,7 +5,7 @@ from typing import Any
 from anthropic.types import TextBlock, ToolUseBlock
 
 from bot.conversation import Conversation
-from bot.loop import MAX_ITERATIONS, run_turn
+from bot.loop import MAX_ITERATIONS, _approved, run_turn
 
 
 class FakeHost:
@@ -48,3 +48,19 @@ def test_normal_turn_does_not_trip_cap() -> None:
     provider = OneShotProvider()
     reply = asyncio.run(run_turn(Conversation(), "hi", provider, FakeHost()))  # type: ignore[arg-type]
     assert reply == "done"
+
+
+def test_approval_denied_when_unattended() -> None:
+    # No interactive session (ask is None) → approval-gated tools are denied (the unattended-block).
+    assert asyncio.run(_approved("run_shell", {"command": "ls"}, None)) is False
+
+
+def test_approval_follows_user_answer() -> None:
+    async def yes(_question: str) -> str:
+        return "y"
+
+    async def no(_question: str) -> str:
+        return "nope"
+
+    assert asyncio.run(_approved("run_shell", {"command": "ls"}, yes)) is True
+    assert asyncio.run(_approved("run_shell", {"command": "rm -rf /"}, no)) is False

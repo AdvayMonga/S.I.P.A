@@ -8,14 +8,14 @@ from anthropic.types import TextBlock
 
 from bot.cli import _make_handler
 from bot.conversation import Conversation
-from bot.daemon import Daemon
+from bot.daemon import ASK_PREFIX, Daemon
 from bot.sources import SocketSource, TimerSource
 from bot.subagent import BackgroundDelegator
 
 
 def test_router_delivers_reply() -> None:
     async def scenario() -> None:
-        async def handle(text: str) -> str:
+        async def handle(text: str, ask: Any = None) -> str:
             return text.upper()
 
         daemon = Daemon(handle)
@@ -37,7 +37,7 @@ def test_router_delivers_reply() -> None:
 
 def test_router_isolates_handler_errors() -> None:
     async def scenario() -> None:
-        async def handle(text: str) -> str:
+        async def handle(text: str, ask: Any = None) -> str:
             raise ValueError("boom")
 
         daemon = Daemon(handle)
@@ -64,7 +64,7 @@ def test_socket_round_trip() -> None:
     sock = f"/tmp/sipa_test_{os.getpid()}.sock"
 
     async def scenario() -> None:
-        async def handle(text: str) -> str:
+        async def handle(text: str, ask: Any = None) -> str:
             return f"echo:{text}"
 
         daemon = Daemon(handle)
@@ -137,6 +137,40 @@ def test_real_handler_wiring_over_socket() -> None:
         Path(sock).unlink(missing_ok=True)
 
 
+def test_socket_ask_round_trip() -> None:
+    # A turn asks the user mid-flight; the answer comes back over the same connection.
+    sock = f"/tmp/sipa_ask_{os.getpid()}.sock"
+
+    async def scenario() -> None:
+        async def handle(text: str, ask: Any = None) -> str:
+            answer = await ask(f"confirm {text}")  # mid-turn question
+            return f"did:{text}:{answer}"
+
+        daemon = Daemon(handle)
+        router = asyncio.create_task(daemon._router())
+        source = asyncio.create_task(SocketSource(sock).run(daemon.submit, daemon.register_sink))
+        await asyncio.sleep(0.05)
+
+        reader, writer = await asyncio.open_unix_connection(sock)
+        writer.write(b"delete X\n")
+        await writer.drain()
+        question = await asyncio.wait_for(reader.readline(), 1)
+        assert question.decode().startswith(ASK_PREFIX)  # marked as a question
+        assert "confirm delete X" in question.decode()
+        writer.write(b"yes\n")  # the answer
+        await writer.drain()
+        reply = await asyncio.wait_for(reader.readline(), 1)
+        assert reply.decode().strip() == "did:delete X:yes"
+        writer.close()
+        router.cancel()
+        source.cancel()
+
+    try:
+        asyncio.run(scenario())
+    finally:
+        Path(sock).unlink(missing_ok=True)
+
+
 def test_timer_fires_repeatedly() -> None:
     async def scenario() -> None:
         ticks = 0
@@ -161,7 +195,7 @@ def _noreg(_sink: Any) -> Any:
 
 def test_notify_broadcasts_to_registered_sinks() -> None:
     async def scenario() -> None:
-        daemon = Daemon(lambda t: _echo(t))
+        daemon = Daemon(_echo)
         got_a: list[str] = []
         got_b: list[str] = []
 
@@ -182,7 +216,7 @@ def test_notify_broadcasts_to_registered_sinks() -> None:
     asyncio.run(scenario())
 
 
-async def _echo(text: str) -> str:
+async def _echo(text: str, ask: Any = None) -> str:
     return text
 
 

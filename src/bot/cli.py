@@ -10,7 +10,7 @@ from mcp import StdioServerParameters
 
 from .config import Settings
 from .conversation import Conversation, finalize_summary
-from .daemon import Daemon, Handler, Respond, Submit
+from .daemon import Ask, Daemon, Handler, Respond, Submit
 from .host import MCPHost
 from .loop import run_turn
 from .provider import ModelProvider, make_provider
@@ -68,9 +68,15 @@ def _make_handler(
 ) -> Handler:
     """The turn-processor the router calls per event — one shared conversation, serialized."""
 
-    async def handle(text: str) -> str:
+    async def handle(text: str, ask: Ask | None = None) -> str:
         return await run_turn(
-            convo, text, provider, host, allow_delegate=True, spawn_background=delegator.start
+            convo,
+            text,
+            provider,
+            host,
+            allow_delegate=True,
+            spawn_background=delegator.start,
+            ask=ask,
         )
 
     return handle

@@ -6,7 +6,7 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 
-from .daemon import Registrar, Submit
+from .daemon import ASK_PREFIX, Registrar, Submit
 
 
 class ShutdownSignal(Exception):
@@ -21,6 +21,11 @@ class StdinSource:
             print(f"\n[sipa] {message}")  # proactive message to the terminal
 
         register(sink)
+
+        async def ask(question: str) -> str:
+            print(f"sipa? {question}")
+            return (await asyncio.to_thread(input, "approve> ")).strip()
+
         print("S.I.P.A. ready (daemon). Ctrl-D to exit.")
         while True:
             try:
@@ -36,7 +41,7 @@ class StdinSource:
                 print(f"sipa> {reply}")
                 done.set()
 
-            await submit(line, respond)
+            await submit(line, respond, ask)
             await done.wait()  # keep turns serial from this source
 
 
@@ -88,7 +93,15 @@ async def _subscribe(
 async def _serve(
     first: bytes, reader: asyncio.StreamReader, writer: asyncio.StreamWriter, submit: Submit
 ) -> None:
-    """Newline-delimited request/reply on one connection (the first line is already read)."""
+    """Newline-delimited request/reply on one connection (the first line is already read).
+    Mid-turn questions are written with ASK_PREFIX; the client's next line is the answer."""
+
+    async def ask(question: str) -> str:
+        writer.write((ASK_PREFIX + question + "\n").encode())
+        await writer.drain()
+        answer = await reader.readline()
+        return answer.decode().strip()
+
     line = first
     while line:
         text = line.decode().strip()
@@ -100,7 +113,7 @@ async def _serve(
                 await writer.drain()
                 done.set()
 
-            await submit(text, respond)
+            await submit(text, respond, ask)
             await done.wait()
         line = await reader.readline()
 

@@ -9,6 +9,7 @@ from anthropic.types import TextBlock, ToolUseBlock
 
 from .context import assemble_context
 from .conversation import Conversation, maybe_compact
+from .daemon import Ask
 from .host import MCPHost
 from .provider import ModelProvider
 from .subagent import DELEGATE_BACKGROUND_TOOL, DELEGATE_TOOL, run_subagents
@@ -17,6 +18,20 @@ _log = logging.getLogger("sipa.loop")
 
 WARN_ITERATIONS = 15  # soft: log and keep going — don't interrupt a legitimately long task
 MAX_ITERATIONS = 40  # hard backstop: stop a runaway turn (tool calls that never converge)
+
+# Tools whose effects are irreversible/external — gated behind user approval. Reversible tools
+# (vault writes auto-commit to git, reads, search) run freely. The exec/shell tool joins this set.
+APPROVAL_REQUIRED: set[str] = set()
+
+
+async def _approved(name: str, args: dict[str, Any], ask: Ask | None) -> bool:
+    """Gate an irreversible/external tool. No interactive session (ask is None) → deny: this is the
+    unattended-block — code/dangerous actions never run on a timer or in a background agent."""
+    if ask is None:
+        _log.info("denied %s — no interactive session to approve", name)
+        return False
+    answer = await ask(f"Approve `{name}`?  {json.dumps(args)[:300]}  [y/N]")
+    return answer.strip().lower() in {"y", "yes"}
 
 SYSTEM = (
     "You are S.I.P.A., a personal assistant with access to an Obsidian vault. "
@@ -34,10 +49,12 @@ async def run_turn(
     *,
     allow_delegate: bool = False,
     spawn_background: Callable[[str], Awaitable[str]] | None = None,
+    ask: Ask | None = None,
 ) -> str:
     """Run one user turn to completion, mutating `convo` in place. `allow_delegate` offers the
     `delegate`/`delegate_background` tools — only top-level turns set it, so sub-agents can't
-    recurse. `spawn_background` starts a detached background sub-agent."""
+    recurse. `spawn_background` starts a detached background sub-agent. `ask` lets the turn request
+    user approval mid-flight (None = unattended → approval-gated tools are denied)."""
     await maybe_compact(convo, provider)  # bound the window before we build the turn
     # Enrich the retrieval query with the rolling summary so follow-ups retrieve against state.
     query = f"{convo.summary[-500:]} {user_message}".strip() if convo.summary else user_message
@@ -81,6 +98,8 @@ async def run_turn(
                     text, is_error = "background delegation unavailable", True
                 else:
                     text, is_error = await spawn_background(args.get("task", "")), False
+            elif block.name in APPROVAL_REQUIRED and not await _approved(block.name, args, ask):
+                text, is_error = "[denied — needs your approval in an interactive session]", True
             else:
                 text, is_error = await host.call_tool(block.name, args)
             tool_results.append(
