@@ -21,5 +21,15 @@ def web_search(query: str, max_results: int = 5) -> str:
     return json.dumps([asdict(r) for r in _backend.search(query, max_results=max_results)])
 
 
+@mcp.tool()
+def web_fetch(url: str) -> str:
+    """Fetch the full content of one web page by URL (extracted markdown). Returns JSON
+    {url, content}, or an error field if the page couldn't be read."""
+    results = _backend.fetch([url])
+    if not results:
+        return json.dumps({"url": url, "content": "", "error": "could not fetch"})
+    return json.dumps(asdict(results[0]))
+
+
 if __name__ == "__main__":
     mcp.run()

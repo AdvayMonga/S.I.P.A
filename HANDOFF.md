@@ -66,7 +66,7 @@ servers/       capabilities (independent MCP processes, spawned by the host):
   scheduler/     recurring-task store (vault note) + tools
   vault_search/  chunk, index (hybrid RRF), server
   memory/        store (profile+recall tiers, one SQLite table) + 9 memory_ tools
-  web/           web_search over a swappable SearchBackend (Tavily); spawns only when keyed
+  web/           web_search + web_fetch over a swappable WebBackend (Tavily); spawns only when keyed
 desktop/       Tauri v2 dashboard (React+Vite+TS frontend + Rust shell) → daemon socket. Outside pkg.
                status bar (state-pulse signature) + configurable PANELS (placeholder) + chat.
 tests/
