@@ -31,6 +31,7 @@ class AnthropicProvider:
         self._client = AsyncAnthropic(api_key=settings.anthropic_api_key)
         self._model = settings.model
         self._max_tokens = settings.max_tokens
+        self._thinking = settings.thinking
         self._in_price = settings.input_price_per_mtok
         self._out_price = settings.output_price_per_mtok
         self._in_tokens = 0  # running session totals
@@ -39,12 +40,14 @@ class AnthropicProvider:
     async def generate(
         self, *, system: str, messages: list[Any], tools: list[Any]
     ) -> Message:
+        extra: dict[str, Any] = {"thinking": {"type": "adaptive"}} if self._thinking else {}
         message = await self._client.messages.create(
             model=self._model,
             max_tokens=self._max_tokens,
             system=system,
             messages=messages,
             tools=tools,
+            **extra,
         )
         usage = message.usage
         self._in_tokens += usage.input_tokens
