@@ -27,10 +27,19 @@ sources ──submit(text, respond)──▶  Daemon queue  ──▶ router ─
 - **StdinSource** — the terminal REPL as a source, so `make run` is unchanged. EOF raises
   `ShutdownSignal`, which propagates through the TaskGroup and stops the daemon cleanly.
 - **SocketSource** — `asyncio.start_unix_server` at `settings.socket_path` (`~/.sipa/sipa.sock`).
-  Newline-delimited request/reply per connection; clears a stale socket on start. `client.py`
-  (`sipa-client`) is the reference client and the path the desktop/Telegram front-ends will reuse.
+  A connection that sends `:subscribe` first becomes a **push channel** (registers an output sink,
+  receives proactive messages); any other connection is newline-delimited request/reply.
 - **TimerSource** — fires `on_tick` immediately (startup catch-up) then every `timer_interval`
-  seconds. `on_tick` = `_make_fire_due(host)`: lists scheduled tasks and submits the due ones.
+  seconds. `on_tick` = `_make_fire_due(host, notify)`: lists scheduled tasks, submits the due ones.
+
+## Proactive delivery (notify + sinks)
+
+Request/reply (`Event.respond`) delivers to the origin; proactive messages (background results,
+scheduled tasks, future reminders) have *no* origin. So the daemon holds a set of **sinks** —
+output channels sources register via `register_sink` (StdinSource → print; a socket `:subscribe`
+connection → write to that client). `daemon.notify(message)` **broadcasts** to all of them. This is
+the primitive every "the bot reaches out to you" feature builds on. The desktop app holds a
+persistent `:subscribe` connection and surfaces pushes as chat messages (see `design/desktop.md`).
 
 ## On-open semantics under a persistent process
 

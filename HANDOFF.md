@@ -11,7 +11,7 @@ server; the core (`src/bot`) only routes turns and spawns servers, never imports
 `VISION.md`. The self-improving auto-builder (`siloop.md` etc.) is **not built** — built by hand
 only after the bot works (bot → loop → autonomy).
 
-## Status: M0–M15 done, all on GitHub
+## Status: M0–M16 done, all on GitHub
 
 - **M0** — loop: terminal → Claude → MCP host → vault. Live-verified.
 - **M1** — Obsidian server: 10 `vault_` tools + atomic writes + frontmatter validation + vault git.
@@ -49,12 +49,15 @@ only after the bot works (bot → loop → autonomy).
   (`read_file`/`list_dir`/`read_image`, scoped to `FS_READ_ROOTS`, path-safe), and **vision** (host
   passes image content from tool results → the model sees images). Live-verified.
 - **M15** — sub-agents (`src/bot/subagent.py`): `delegate` (parallel fan-out, cap 5) +
-  `delegate_background` (detached worker → keep chatting, prints result on done). Offered only on
-  top-level turns (`run_turn(allow_delegate=True)`); sub-agents can't recurse. `BackgroundDelegator`
-  wired in `cli`. v1: background result prints to the daemon terminal (not per-source yet).
+  `delegate_background` (detached worker → keep chatting). Offered only on top-level turns
+  (`run_turn(allow_delegate=True)`); sub-agents can't recurse. `BackgroundDelegator` wired in `cli`.
+- **M16** — proactive delivery: `daemon.notify` broadcasts to registered **sinks** (output channels
+  sources register); a socket `:subscribe` connection is a push channel. Background results +
+  scheduled tasks route through the router (bot presents in context) then broadcast — reaching the
+  terminal AND the desktop app (persistent `:subscribe` connection → `sipa-push` event → chat).
 - **Refactor** — `servers/` at repo root; shared infra extracted to `vaultfs` + `embedding`.
 
-`make check` green: ruff + pyright + **95 tests**. (`desktop/` is Rust — built via `cargo`, not in
+`make check` green: ruff + pyright + **97 tests**. (`desktop/` is Rust — built via `cargo`, not in
 `make check`.)
 
 ## Layout

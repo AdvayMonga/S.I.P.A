@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 
 type Msg = { role: "user" | "sipa"; text: string };
@@ -14,6 +15,16 @@ export function Chat({ onBusyChange }: { onBusyChange: (busy: boolean) => void }
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, pending]);
+
+  // Proactive messages the daemon pushes on its own (background results, scheduled tasks).
+  useEffect(() => {
+    const unlisten = listen<string>("sipa-push", (e) => {
+      setMessages((m) => [...m, { role: "sipa", text: e.payload }]);
+    });
+    return () => {
+      unlisten.then((off) => off());
+    };
+  }, []);
 
   async function send(e: FormEvent) {
     e.preventDefault();

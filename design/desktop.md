@@ -26,7 +26,10 @@ React (src/) ──invoke("ask", {message})──▶ Rust (src-tauri/lib.rs) ─
 - **Backend** (`desktop/src-tauri/`): the `ask(message)` command opens a `UnixStream` to the socket
   (`SIPA_SOCKET` env, default `~/.sipa/sipa.sock`), writes the line, returns the reply line. One
   connection per message — the daemon shares one `Conversation` across connections, so continuity
-  holds regardless.
+  holds regardless. A **`subscribe_loop`** (spawned at setup) holds a persistent `:subscribe`
+  connection and emits each proactive push (background results, scheduled tasks) as a `sipa-push`
+  Tauri event; the frontend `Chat` listens and appends them as messages. Reconnects if the daemon
+  isn't up / the link drops.
 
 ## Run
 

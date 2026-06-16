@@ -31,16 +31,16 @@ sequential things itself.
 "Kick off the research, hand me back control, ping me when it's done." The model calls
 **`delegate_background(task)`**; `BackgroundDelegator.start` spawns a **detached** sub-agent
 (`asyncio.create_task`, capped by its own semaphore), returns an ack immediately, and the main turn
-ends — you keep control. When the worker finishes it calls `notify(id, task, result)` (default: print
-to the daemon terminal). Both `delegate` and `delegate_background` are offered only on top-level turns
+ends — you keep control. Both `delegate` and `delegate_background` are offered only on top-level turns
 (`allow_delegate`); `spawn_background` is threaded in from `cli`.
 
-**Known limits (v1):** the result prints to the daemon's terminal (the same proactive-output
-convention the timer uses) — it isn't routed per-source to a socket/desktop client, and it isn't
-folded back into the main conversation (the sub-agent can `memory_remember` findings if needed).
-Routing completions through the event router as proper per-source events (so the desktop app gets
-them, and the bot can present them in context) is the refinement. Background + fan-out have *separate*
-concurrency caps for now. See `BACKLOG.md`.
+**Delivery (the M-proactive work):** on completion the result is routed through the **event router**
+(`cli` sets `delegator.set_notify` to submit a short presentation turn) — so the bot frames it *in the
+conversation* (it remembers it did the work), and `daemon.notify` broadcasts it to every connected
+channel: the terminal **and** the desktop app's `:subscribe` connection. So it reaches you wherever
+you are. Costs one small presentation turn per completion.
+
+**Remaining:** background + fan-out have *separate* concurrency caps. See `BACKLOG.md`.
 
 ## Costs & caveats
 
