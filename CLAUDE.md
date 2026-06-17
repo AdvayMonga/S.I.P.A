@@ -7,6 +7,11 @@ doesn't enforce.
 > where every capability is an MCP server, with an Obsidian vault as durable memory and a
 > separate agent-memory store. Spec: `VISION.md`.
 >
+> **This is a long-term project — build for growth.** Favour designs that extend additively over
+> ones that get rewritten as scope grows. Spend the care on what's expensive to change later
+> (schemas, seams, contracts) and get *those* right; let cheap-to-change details (counts,
+> backends, sizes) start simple and evolve. Future-proof the seam, not the implementation.
+>
 > **Stack:** Python 3.12+, `uv` for env/deps. MCP via the official `mcp` SDK (FastMCP for
 > servers). Stores on SQLite (`sqlite-vec` + FTS5). `pytest` / `ruff` / `pyright`.
 > **Build/check:** `make check` (ruff + pyright + pytest).
