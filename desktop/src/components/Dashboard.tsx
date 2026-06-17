@@ -1,15 +1,15 @@
 import { useEffect, useState } from "react";
-import RGL, { type Layout, type LayoutItem, WidthProvider } from "react-grid-layout/legacy";
+import GridLayout, { type Layout, WidthProvider } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 
 import { DEFAULT_LAYOUT, MODULES } from "../modules/registry";
 import { Tile } from "./Tile";
 
-const Grid = WidthProvider(RGL);
-const STORE_KEY = "sipa.dashboard.v1";
+const Grid = WidthProvider(GridLayout);
+const STORE_KEY = "sipa.dashboard.v2";
 
-type Saved = { layout: Layout; enabled: string[] };
+type Saved = { layout: Layout[]; enabled: string[] };
 
 function load(): Saved {
   try {
@@ -34,7 +34,7 @@ export function Dashboard({ editing }: { editing: boolean }) {
   const available = MODULES.filter((m) => !enabled.includes(m.id));
 
   // Guarantee a layout entry per placed module (RGL needs one); missing → auto-place at the bottom.
-  const fullLayout: LayoutItem[] = placed.map(
+  const fullLayout: Layout[] = placed.map(
     (m) => layout.find((l) => l.i === m.id) ?? { i: m.id, x: 0, y: Infinity, w: m.w, h: m.h },
   );
 
@@ -49,14 +49,18 @@ export function Dashboard({ editing }: { editing: boolean }) {
 
   return (
     <div className="dashboard">
-      {editing && available.length > 0 && (
+      {editing && (
         <div className="add-bar">
           <span className="add-label">add module:</span>
-          {available.map((m) => (
-            <button key={m.id} onClick={() => add(m.id)}>
-              {m.title}
-            </button>
-          ))}
+          {available.length > 0 ? (
+            available.map((m) => (
+              <button key={m.id} onClick={() => add(m.id)}>
+                {m.title}
+              </button>
+            ))
+          ) : (
+            <span className="add-empty">all modules placed</span>
+          )}
         </div>
       )}
       <Grid
@@ -68,7 +72,8 @@ export function Dashboard({ editing }: { editing: boolean }) {
         isResizable={false}
         isDraggable={editing}
         draggableHandle=".tile-head"
-        onLayoutChange={(l: Layout) => setState((s) => ({ ...s, layout: l }))}
+        draggableCancel=".tile-remove"
+        onLayoutChange={(l: Layout[]) => setState((s) => ({ ...s, layout: l }))}
       >
         {placed.map((m) => (
           <div key={m.id}>

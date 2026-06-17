@@ -243,3 +243,23 @@ actually is.
 visibility matter more there. (3) Moving SIPA's *chat* turns onto the Agent SDK is possible (the
 credit covers third-party apps) but is a re-architecture — the Agent SDK runs its own agent loop —
 so it's deferred, not a drop-in for our hand-built loop. Sources: Claude Code + Agent SDK auth docs.
+
+## 2026-06-17 — Dashboard drag: react-grid-layout v1.5 + a `process` shim
+
+The customizable dashboard uses **react-grid-layout 1.5** (not the 2.x rewrite). 2.x dropped the
+flat `WidthProvider`/`draggableHandle` API and ships an immature `legacy` shim; v1.5 is the mature,
+battle-tested API and is the right call for a project that needs to just work.
+
+**The drag bug that ate a session:** tiles wouldn't drag — mousedown selected text instead.
+Root cause was *not* our code (wiring, StrictMode, and handle were all correct). react-draggable
+(bundled in RGL) has a debug `log()` that reads `process.env.DRAGGABLE_DEBUG`; with no Node
+`process` global in the browser it threw `ReferenceError: process is not defined` inside
+`handleDragStart`, *before* `preventDefault()` — so every drag aborted and the browser selected
+text. Fix: shim `window.process = { env: {} }` in `index.html` (runs before any module) plus a Vite
+`define` for the same key. Lesson: when a library's event handler throws, the symptom (text
+selection) looks like a CSS/handle problem but is really the handler dying mid-flight — check the
+console early.
+
+Also removed `React.StrictMode` (main.tsx): it wasn't the cause here, but RGL's reliance on the
+deprecated `findDOMNode` makes StrictMode's double-mount a known source of drag flakiness, so it
+stays off while we use RGL.

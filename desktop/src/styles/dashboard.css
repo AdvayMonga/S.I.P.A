@@ -129,6 +129,12 @@
 .add-bar button:hover {
   border-color: var(--signal-cool);
 }
+.add-empty {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+  font-style: italic;
+}
 
 /* ── tile (a module's frame) ──────────────────────────────── */
 .tile {
@@ -143,6 +149,18 @@
 .tile--editing {
   border-color: var(--muted);
 }
+.tile--editing .tile-head {
+  cursor: grab;
+  background: var(--signal-cool);
+  color: #06201b;
+  user-select: none;
+}
+.tile--editing .tile-head:active {
+  cursor: grabbing;
+}
+.tile--editing .tile-head .tile-title {
+  color: #06201b;
+}
 .tile-head {
   display: flex;
   align-items: center;
@@ -151,9 +169,6 @@
   padding: 0 12px;
   border-bottom: 1px solid var(--line);
   background: var(--surface);
-}
-.tile--editing .tile-head {
-  cursor: grab;
 }
 .tile-title {
   font-family: var(--font-mono);
@@ -180,6 +195,13 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+/* In edit mode the whole tile is a drag surface — content stays inert so it doesn't
+   swallow the mousedown or let you interact while rearranging. */
+.tile--editing .tile-body {
+  pointer-events: none;
+  user-select: none;
+  opacity: 0.55;
 }
 .module-empty {
   margin: auto;

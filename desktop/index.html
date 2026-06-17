@@ -4,6 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>S.I.P.A.</title>
+    <!-- Shim a `process` global so react-draggable's process.env access doesn't throw in-browser. -->
+    <script>
+      window.process = window.process || { env: {} };
+    </script>
   </head>
   <body>
     <div id="root"></div>
