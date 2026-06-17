@@ -2,11 +2,14 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 
+import { useBusy } from "../state";
+
 type Msg = { role: "user" | "sipa"; text: string };
 
-/** Chat over the daemon socket. `onBusyChange` drives the status-bar state pulse: warm while a
- * request is in flight (the bot is actually thinking), cool otherwise. */
-export function Chat({ onBusyChange }: { onBusyChange: (busy: boolean) => void }) {
+/** Chat over the daemon socket. Sets the shared busy flag (status-bar pulse) while a request is in
+ * flight. The main module on the dashboard. */
+export function Chat() {
+  const { setBusy } = useBusy();
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [pending, setPending] = useState(false);
@@ -49,7 +52,7 @@ export function Chat({ onBusyChange }: { onBusyChange: (busy: boolean) => void }
     setInput("");
     setMessages((m) => [...m, { role: "user", text }]);
     setPending(true);
-    onBusyChange(true);
+    setBusy(true);
     try {
       const reply = await invoke<string>("ask", { message: text });
       setMessages((m) => [...m, { role: "sipa", text: reply }]);
@@ -57,7 +60,7 @@ export function Chat({ onBusyChange }: { onBusyChange: (busy: boolean) => void }
       setMessages((m) => [...m, { role: "sipa", text: `[error] ${err}` }]);
     } finally {
       setPending(false);
-      onBusyChange(false);
+      setBusy(false);
     }
   }
 

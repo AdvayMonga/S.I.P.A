@@ -1,7 +1,7 @@
 .app {
   height: 100vh;
   display: grid;
-  grid-template-rows: auto auto 1fr auto; /* status · panels · transcript · composer */
+  grid-template-rows: auto 1fr; /* status · dashboard */
 }
 
 /* ── status bar ───────────────────────────────────────────── */
@@ -40,6 +40,31 @@
   font-size: 12px;
   color: var(--signal-cool);
 }
+.status-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.edit-toggle {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 4px 12px;
+  cursor: pointer;
+}
+.edit-toggle:hover {
+  color: var(--text);
+  border-color: var(--muted);
+}
+.edit-toggle.on {
+  color: var(--signal-warm);
+  border-color: var(--signal-warm);
+}
 
 /* ── signature: the daemon state pulse ────────────────────── */
 .pulse-dot {
@@ -72,23 +97,65 @@
   }
 }
 
-/* ── panel grid (instrument cluster: hairline seams) ──────── */
-.panel-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1px;
-  background: var(--line);
-  border-bottom: 1px solid var(--line);
+/* ── dashboard (the customizable module grid) ─────────────── */
+.dashboard {
+  overflow: auto;
+  padding: 10px;
 }
-.panel {
-  background: var(--ink);
-  min-height: 132px;
-  padding: 14px 16px;
+.add-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 6px 12px;
+  flex-wrap: wrap;
+}
+.add-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.add-bar button {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: transparent;
+  color: var(--signal-cool);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 4px 12px;
+  cursor: pointer;
+}
+.add-bar button:hover {
+  border-color: var(--signal-cool);
+}
+
+/* ── tile (a module's frame) ──────────────────────────────── */
+.tile {
+  height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  background: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
 }
-.panel-title {
+.tile--editing {
+  border-color: var(--muted);
+}
+.tile-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 30px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+.tile--editing .tile-head {
+  cursor: grab;
+}
+.tile-title {
   font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 600;
@@ -96,41 +163,50 @@
   text-transform: uppercase;
   color: var(--muted);
 }
-.panel-body {
-  flex: 1;
-  display: flex;
+.tile-remove {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
 }
-.metric {
+.tile-remove:hover {
+  color: var(--signal-warm);
+}
+.tile-body {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
 }
-.metric-value {
-  font-family: var(--font-mono);
-  font-size: 26px;
-  letter-spacing: 0.01em;
-}
-.metric-sub {
-  font-family: var(--font-mono);
-  font-size: 11px;
+.module-empty {
+  margin: auto;
+  padding: 16px;
+  text-align: center;
   color: var(--muted);
-}
-.metric-note {
-  font-size: 10px;
+  font-size: 12px;
   font-style: italic;
-  color: var(--muted);
-  opacity: 0.7;
+  opacity: 0.8;
 }
-.empty {
-  align-self: center;
-  color: var(--muted);
-  font-size: 13px;
+
+/* ── react-grid-layout overrides ──────────────────────────── */
+.react-grid-item.react-grid-placeholder {
+  background: var(--signal-cool);
+  opacity: 0.12;
+  border-radius: 12px;
+}
+.react-grid-item > .react-resizable-handle {
+  display: none;
 }
 
 /* ── chat ─────────────────────────────────────────────────── */
 .transcript {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  padding: 22px 20px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 12px;

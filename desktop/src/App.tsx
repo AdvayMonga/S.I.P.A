@@ -1,17 +1,17 @@
 import { useState } from "react";
 
-import { Chat } from "./components/Chat";
-import { PanelGrid } from "./components/PanelGrid";
+import { Dashboard } from "./components/Dashboard";
 import { StatusBar } from "./components/StatusBar";
-import { PANELS } from "./panels";
+import { BusyProvider } from "./state";
 
 export function App() {
-  const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(false);
   return (
-    <div className="app">
-      <StatusBar state={busy ? "active" : "idle"} />
-      <PanelGrid panels={PANELS} />
-      <Chat onBusyChange={setBusy} />
-    </div>
+    <BusyProvider>
+      <div className="app">
+        <StatusBar editing={editing} onToggleEdit={() => setEditing((e) => !e)} />
+        <Dashboard editing={editing} />
+      </div>
+    </BusyProvider>
   );
 }
