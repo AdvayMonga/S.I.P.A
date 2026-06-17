@@ -297,6 +297,29 @@ command; compile-verified, wants a live GUI run). **Remaining (BACKLOG):** the *
 **Base toolbox left:** filesystem write (reversible via git), computer use (tier 3). Connectors
 (Gmail/Calendar/Drive) separately.
 
+## Desktop dashboard — backbone DONE (2026-06-17)
+
+Reworked the desktop from a fixed chat window into a **customizable module grid**: each capability
+is a tile on a 12-col `react-grid-layout` grid; an "edit" toggle (status bar) enables drag-to-place
+(snap-to-grid) + add/remove via a palette; the single layout persists to `localStorage`
+(`sipa.dashboard.v2`) across sessions. Chat is the one live module (7×12); Token Usage, Background
+Agents, Scheduler are **placeholder tiles** (built individually, not yet wired). Design:
+`design/dashboard.md`. Build-verified (`tsc && vite build`) + GUI-verified (drag works).
+
+Pinned **react-grid-layout v1.5** (the 2.x rewrite's legacy shim was buggy). The drag-dead bug was
+react-draggable reading `process.env` in-browser → `ReferenceError` in `handleDragStart`; fixed with
+a `window.process` shim in `index.html` + a Vite `define`. `React.StrictMode` left off (RGL +
+`findDOMNode` flakiness). See `DECISIONS.md` (2026-06-17).
+
+## Current task — wire the dashboard modules to live daemon state
+
+Turn the placeholder tiles into real mini control-panels, fed by the M16 push channel (the desktop's
+persistent `:subscribe` socket connection → `sipa-push`). Cheap-to-wire first: **Token Usage**
+(per-call/session `cost_usd` the daemon already logs to `sipa.cost`), **Background Agents**
+(delegate/`delegate_background` status), **Scheduler** (due/next scheduled tasks). Needs a small
+telemetry path: daemon emits structured status events → desktop routes them to the right module.
+Build modules one at a time (per the user's "mini control panels" framing).
+
 ## Later (not started)
 
 A self-hosted SearXNG backend (full OSS), web-image vision, real-tokenizer context budget +

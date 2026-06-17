@@ -2,7 +2,7 @@
 
 Save-state for resuming cold. Overwritten each session end. Read this first, then `PLAN.md`.
 
-_Last updated: 2026-06-13._
+_Last updated: 2026-06-17._
 
 ## What this is
 
@@ -87,7 +87,9 @@ servers/       capabilities (independent MCP processes, spawned by the host):
   fs/            read_file/list_dir/read_image, confined to FS_READ_ROOTS; spawns only when set
   exec/          run_shell in EXEC_ROOT (off by default); approval-gated, unattended-denied
 desktop/       Tauri v2 dashboard (React+Vite+TS frontend + Rust shell) → daemon socket. Outside pkg.
-               status bar (state-pulse signature) + configurable PANELS (placeholder) + chat.
+               customizable module GRID (react-grid-layout v1.5): edit-mode drag/add/remove,
+               layout persisted to localStorage. Chat is the live module; Token Usage / Background
+               Agents / Scheduler are placeholder tiles (not yet wired). See design/dashboard.md.
 tests/
 data/          index.db, vault_search.db, scheduler_state.json (rebuildable) + memory.db
                (SOURCE OF TRUTH, not rebuildable). All gitignored.
@@ -142,9 +144,13 @@ set) → 25 aggregated tools, 26 with web.
 
 ## Next (see `PLAN.md`)
 
-Buildable without input: session-summary persistence across restarts (distill to a memory `episode`
-on shutdown), token budgeting/cost rollups, graph one-hop, incremental reindex, wiring
-`LocalProvider` to a real runtime. All in `BACKLOG.md`. (Telegram dropped per user.)
+**Active task: wire the dashboard's placeholder tiles to live daemon state** — Token Usage
+(`cost_usd` already logged to `sipa.cost`), Background Agents, Scheduler — fed via the M16 push
+channel (desktop `:subscribe` → `sipa-push`). Needs a small telemetry path (daemon emits structured
+status events → desktop routes to the right module). Build modules one at a time.
+
+Also buildable without input: graph one-hop, incremental reindex, wiring `LocalProvider` to a real
+runtime, the sandbox (unattended shell → autobuilder). All in `BACKLOG.md`. (Telegram dropped.)
 
 ## Gotchas
 
