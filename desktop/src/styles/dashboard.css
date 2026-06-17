@@ -213,6 +213,57 @@
   opacity: 0.8;
 }
 
+/* ── token usage module ───────────────────────────────────── */
+.cost {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 16px;
+  padding: 16px 18px;
+}
+.cost-headline {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.cost-amount {
+  font-family: var(--font-mono);
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--signal-cool);
+}
+.cost-caption {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.cost-stats {
+  display: flex;
+  gap: 22px;
+  margin: 0;
+}
+.cost-stats div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.cost-stats dt {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.cost-stats dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text);
+}
+
 /* ── react-grid-layout overrides ──────────────────────────── */
 .react-grid-item.react-grid-placeholder {
   background: var(--signal-cool);

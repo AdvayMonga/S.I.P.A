@@ -165,6 +165,12 @@ async def _main() -> None:
         approver = Approver(settings.approval_mode)
         daemon = Daemon(_make_handler(convo, provider, host, delegator, approver))
 
+        async def emit_cost() -> None:
+            # After every turn, push running token/cost totals to the dashboard's Token Usage tile.
+            await daemon.emit_telemetry("cost", provider.usage())
+
+        daemon.after_turn = emit_cost
+
         async def present_background(task_id: int, task: str, result: str) -> None:
             # Route the finished result through the router so the bot presents it in context (lands
             # in the conversation) and `daemon.notify` broadcasts it to every connected channel.

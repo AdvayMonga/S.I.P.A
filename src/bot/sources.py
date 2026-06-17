@@ -6,7 +6,7 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 
-from .daemon import ASK_PREFIX, Registrar, Submit
+from .daemon import ASK_PREFIX, TELEMETRY_PREFIX, Registrar, Submit
 
 
 class ShutdownSignal(Exception):
@@ -18,6 +18,8 @@ class StdinSource:
 
     async def run(self, submit: Submit, register: Registrar) -> None:
         async def sink(message: str) -> None:
+            if message.startswith(TELEMETRY_PREFIX):
+                return  # telemetry is for the dashboard, not the chat REPL
             print(f"\n[sipa] {message}")  # proactive message to the terminal
 
         register(sink)

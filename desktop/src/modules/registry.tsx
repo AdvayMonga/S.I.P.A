@@ -1,6 +1,7 @@
 import type { ComponentType } from "react";
 
 import { Chat } from "../components/Chat";
+import { CostModule } from "./Cost";
 
 /** A dashboard module = one capability's tile. `w`/`h` are its footprint in grid units (cols=12).
  * Each capability gets its own component, built individually; placeholders until their data exists. */
@@ -10,7 +11,6 @@ function Placeholder({ note }: { note: string }) {
   return <p className="module-empty">{note}</p>;
 }
 
-const CostModule = () => <Placeholder note="token usage — not wired yet" />;
 const AgentsModule = () => <Placeholder note="background agents — not wired yet" />;
 const SchedulerModule = () => <Placeholder note="scheduled tasks — not wired yet" />;
 

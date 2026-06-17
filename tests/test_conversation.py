@@ -25,6 +25,9 @@ class FakeProvider:
         self.last_input = messages[0]["content"]
         return SimpleNamespace(content=[TextBlock(type="text", text="ROLLED SUMMARY")])
 
+    def usage(self) -> dict:
+        return {}
+
 
 def _user(text: str) -> dict:
     return {"role": "user", "content": text}

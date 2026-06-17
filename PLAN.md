@@ -314,11 +314,22 @@ a `window.process` shim in `index.html` + a Vite `define`. `React.StrictMode` le
 ## Current task — wire the dashboard modules to live daemon state
 
 Turn the placeholder tiles into real mini control-panels, fed by the M16 push channel (the desktop's
-persistent `:subscribe` socket connection → `sipa-push`). Cheap-to-wire first: **Token Usage**
-(per-call/session `cost_usd` the daemon already logs to `sipa.cost`), **Background Agents**
-(delegate/`delegate_background` status), **Scheduler** (due/next scheduled tasks). Needs a small
-telemetry path: daemon emits structured status events → desktop routes them to the right module.
-Build modules one at a time (per the user's "mini control panels" framing).
+persistent `:subscribe` socket connection). Build modules one at a time.
+
+**Telemetry backbone — DONE (2026-06-17).** One typed channel, not a separate transport (decided:
+`DECISIONS.md`). Every pushed line is either chat (plain, → `sipa-push`) or telemetry
+(`TELEMETRY_PREFIX` + JSON `{topic, …}`, → `sipa-telemetry`). `Daemon.emit_telemetry(topic, payload)`
+broadcasts; the terminal REPL ignores telemetry lines; the desktop routes on prefix + `topic`
+(`telemetry.tsx` holds latest-per-topic, modules read their slice via `useTelemetry`). `topic`-
+filtered *subscriptions* reserved for a future second consumer.
+
+**Token Usage — DONE (2026-06-17).** `ModelProvider.usage()` returns session + last-call tokens +
+`cost_usd`; `cli` pushes a `cost` snapshot after every turn via `daemon.after_turn`. Desktop: the
+`Token Usage` tile (`modules/Cost.tsx`) + the status-bar session cost now render live. Verified:
+`make check` (111 tests) + `tsc`/`vite build` + `cargo check`.
+
+**Next:** **Background Agents** (delegate/`delegate_background` status — needs the delegator to emit
+start/finish telemetry) then **Scheduler** (due/next from `list_scheduled_tasks`). Same envelope.
 
 ## Later (not started)
 

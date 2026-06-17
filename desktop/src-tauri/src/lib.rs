@@ -8,6 +8,7 @@ use tokio::net::UnixStream;
 use tokio::sync::oneshot;
 
 const ASK_PREFIX: &str = "\u{1}?"; // a daemon line starting with this is a question, not a reply
+const TELEMETRY_PREFIX: &str = "\u{1}T"; // a pushed line starting with this is a telemetry snapshot (JSON)
 
 fn socket_path() -> String {
     std::env::var("SIPA_SOCKET").unwrap_or_else(|_| {
@@ -72,15 +73,25 @@ fn approve(state: State<'_, Approvals>, id: String, answer: String) -> Result<()
     Ok(())
 }
 
-/// Persistent `:subscribe` connection — emit each proactive push (background results, scheduled
-/// tasks) to the frontend as a `sipa-push` event. Reconnects if the daemon is down / the link drops.
+/// Persistent `:subscribe` connection — route each pushed line by its typed prefix: telemetry
+/// snapshots (`{topic, …}`) → `sipa-telemetry`; everything else (background results, scheduled
+/// tasks) → `sipa-push`. Reconnects if the daemon is down / the link drops.
 async fn subscribe_loop(app: AppHandle) {
     loop {
         if let Ok(mut stream) = UnixStream::connect(socket_path()).await {
             if stream.write_all(b":subscribe\n").await.is_ok() {
                 let mut lines = BufReader::new(stream).lines();
                 while let Ok(Some(line)) = lines.next_line().await {
-                    let _ = app.emit("sipa-push", line);
+                    match line.strip_prefix(TELEMETRY_PREFIX) {
+                        Some(json) => {
+                            if let Ok(value) = serde_json::from_str::<serde_json::Value>(json) {
+                                let _ = app.emit("sipa-telemetry", value);
+                            }
+                        }
+                        None => {
+                            let _ = app.emit("sipa-push", line);
+                        }
+                    }
                 }
             }
         }

@@ -4,11 +4,13 @@ One conversation, one queue — turns run one at a time, so sources (stdin, sock
 the same brain without racing. See design/daemon.md."""
 
 import asyncio
+import json
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Any, Protocol
 
 ASK_PREFIX = "\x01?"  # a socket line starting with this is a question, not a reply (clients prompt)
+TELEMETRY_PREFIX = "\x01T"  # a pushed line with this prefix is a telemetry snapshot (JSON)
 
 Respond = Callable[[str], Awaitable[None]]
 Ask = Callable[[str], Awaitable[str]]  # ask the user a question mid-turn; await their answer
@@ -43,6 +45,8 @@ class Daemon:
         self._handle = handle
         self._queue: asyncio.Queue[Event] = asyncio.Queue()
         self._sinks: set[Sink] = set()  # connected output channels for proactive messages
+        # Optional post-turn hook — e.g. broadcast a cost snapshot after every turn (wired by cli).
+        self.after_turn: Callable[[], Awaitable[None]] | None = None
 
     async def submit(self, text: str, respond: Respond, ask: Ask | None = None) -> None:
         await self._queue.put(Event(text, respond, ask))
@@ -61,6 +65,11 @@ class Daemon:
             except Exception:  # a dead client must not block delivery to the others
                 pass
 
+    async def emit_telemetry(self, topic: str, payload: dict[str, Any]) -> None:
+        """Broadcast a typed state snapshot for one module (cost, agents, scheduler …) over the same
+        push channel as chat — the desktop routes on the prefix + topic. See design/dashboard.md."""
+        await self.notify(TELEMETRY_PREFIX + json.dumps({"topic": topic, **payload}))
+
     async def _router(self) -> None:
         while True:
             event = await self._queue.get()
@@ -69,6 +78,11 @@ class Daemon:
             except Exception as exc:  # one bad turn must never kill the daemon
                 reply = f"[error] {exc}"
             await event.respond(reply)
+            if self.after_turn is not None:
+                try:
+                    await self.after_turn()
+                except Exception:  # telemetry is best-effort; never let it break the router
+                    pass
             self._queue.task_done()
 
     async def run(self, sources: list[Source]) -> None:

@@ -34,6 +34,35 @@ broadcasts state snapshots (cost, running/queued background agents, upcoming sch
 memory), and each module subscribes to its slice. This is most of the effort; each module is then a
 small view/control on top. Built per-capability as they're instrumented.
 
+### Transport: one typed channel, not a separate one (2026-06-17)
+
+Telemetry rides the **same** push/`:subscribe` channel as chat — not a second socket. The reason is
+that the long-term cost lives in the **envelope schema, not the socket count**: get the envelope
+typed and you can split transports later trivially; a second transport now just doubles the
+reconnect/liveness/ordering surface for isolation we don't need (telemetry here is low-frequency, so
+it can't starve chat on the shared serialized stream). See `DECISIONS.md` (2026-06-17).
+
+**Envelope.** Every push payload is `{type, topic?, ...payload}`:
+- `type: "chat"` — a narrative message to append to the conversation view (today's `sipa-push`).
+- `type: "telemetry"` — a state snapshot for a module; `topic` names the module slice
+  (`"cost"` | `"agents"` | `"scheduler"` | …).
+
+The daemon's `notify`/broadcast tags each event; the desktop's `:subscribe` handler switches on
+`type` → for `telemetry`, routes by `topic` to the owning module's store; for `chat`, the existing
+chat append. Every subscriber gets every event and filters client-side for now.
+
+**Future-proofing (reserved, not built).** `topic` exists so we can later add topic-*filtered*
+subscriptions (`:subscribe cost`) on the same transport — the moment a second consumer with
+divergent needs (e.g. a headless cost logger) shows up. Until then it's just a routing tag. This is
+a strict superset of today's behavior, so it's an additive change, never a rewrite.
+
+### Token Usage module (first wired, 2026-06-17)
+
+Cheapest slice: the daemon already computes per-call + running `cost_usd` (M12, logged to
+`sipa.cost`). After each turn the daemon broadcasts a `telemetry`/`cost` snapshot (session totals +
+last-call delta: tokens in/out, `cost_usd`); the desktop's Token Usage tile renders the running
+session cost + a small per-call readout. Read-only view (no controls yet).
+
 ## First build (the backbone)
 
 Framework only: registry + grid (drag/snap/edit) + localStorage persistence + add/remove menu, with

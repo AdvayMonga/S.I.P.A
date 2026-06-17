@@ -23,6 +23,10 @@ class ModelProvider(Protocol):
         self, *, system: str, messages: list[Any], tools: list[Any]
     ) -> Message: ...
 
+    def usage(self) -> dict[str, Any]:
+        """Running session token/cost totals + the last call's delta (for telemetry)."""
+        ...
+
 
 class AnthropicProvider:
     """Claude via the official SDK. The default ModelProvider."""
@@ -36,6 +40,8 @@ class AnthropicProvider:
         self._out_price = settings.output_price_per_mtok
         self._in_tokens = 0  # running session totals
         self._out_tokens = 0
+        self._last_in = 0  # the most recent call's delta
+        self._last_out = 0
 
     async def generate(
         self, *, system: str, messages: list[Any], tools: list[Any]
@@ -50,6 +56,8 @@ class AnthropicProvider:
             **extra,
         )
         usage = message.usage
+        self._last_in = usage.input_tokens
+        self._last_out = usage.output_tokens
         self._in_tokens += usage.input_tokens
         self._out_tokens += usage.output_tokens
         session = cost_usd(self._in_tokens, self._out_tokens, self._in_price, self._out_price)
@@ -63,6 +71,16 @@ class AnthropicProvider:
         )
         return message
 
+    def usage(self) -> dict[str, Any]:
+        session = cost_usd(self._in_tokens, self._out_tokens, self._in_price, self._out_price)
+        return {
+            "in_tokens": self._in_tokens,
+            "out_tokens": self._out_tokens,
+            "last_in": self._last_in,
+            "last_out": self._last_out,
+            "cost_usd": session,
+        }
+
 
 class LocalProvider:
     """Scaffold for a fully-local model (no data leaves the device). Not wired yet — selecting
@@ -75,6 +93,9 @@ class LocalProvider:
         raise NotImplementedError(
             "LocalProvider is a scaffold — wire a local runtime before selecting provider='local'."
         )
+
+    def usage(self) -> dict[str, Any]:
+        return {"in_tokens": 0, "out_tokens": 0, "last_in": 0, "last_out": 0, "cost_usd": 0.0}
 
 
 def make_provider(settings: Settings) -> ModelProvider:

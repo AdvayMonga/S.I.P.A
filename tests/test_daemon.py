@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 from pathlib import Path
 from types import SimpleNamespace
@@ -8,7 +9,7 @@ from anthropic.types import TextBlock
 
 from bot.cli import _make_handler
 from bot.conversation import Conversation
-from bot.daemon import ASK_PREFIX, Daemon
+from bot.daemon import ASK_PREFIX, TELEMETRY_PREFIX, Daemon
 from bot.loop import Approver
 from bot.sources import SocketSource, TimerSource
 from bot.subagent import BackgroundDelegator
@@ -215,6 +216,48 @@ def test_notify_broadcasts_to_registered_sinks() -> None:
         await daemon.notify("pong")
         assert got_a == ["ping"]  # A only saw the first
         assert got_b == ["ping", "pong"]  # B saw both
+
+    asyncio.run(scenario())
+
+
+def test_emit_telemetry_is_a_typed_envelope() -> None:
+    async def scenario() -> None:
+        daemon = Daemon(_echo)
+        got: list[str] = []
+
+        async def sink(msg: str) -> None:
+            got.append(msg)
+
+        daemon.register_sink(sink)
+        await daemon.emit_telemetry("cost", {"cost_usd": 0.5, "in_tokens": 10})
+        assert len(got) == 1
+        assert got[0].startswith(TELEMETRY_PREFIX)
+        payload = json.loads(got[0][len(TELEMETRY_PREFIX) :])
+        assert payload == {"topic": "cost", "cost_usd": 0.5, "in_tokens": 10}
+
+    asyncio.run(scenario())
+
+
+def test_after_turn_hook_fires_after_each_turn() -> None:
+    async def scenario() -> None:
+        daemon = Daemon(_echo)
+        fired: list[int] = []
+
+        async def after() -> None:
+            fired.append(1)
+
+        daemon.after_turn = after
+        router = asyncio.create_task(daemon._router())
+        done = asyncio.Event()
+
+        async def respond(reply: str) -> None:
+            done.set()
+
+        await daemon.submit("hi", respond)
+        await asyncio.wait_for(done.wait(), 1)
+        await asyncio.sleep(0)  # let the hook run after respond
+        router.cancel()
+        assert fired == [1]
 
     asyncio.run(scenario())
 

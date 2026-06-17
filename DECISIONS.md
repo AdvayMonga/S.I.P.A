@@ -263,3 +263,23 @@ console early.
 Also removed `React.StrictMode` (main.tsx): it wasn't the cause here, but RGL's reliance on the
 deprecated `findDOMNode` makes StrictMode's double-mount a known source of drag flakiness, so it
 stays off while we use RGL.
+
+## 2026-06-17 — Dashboard telemetry rides one typed channel, not a separate transport
+
+**Decision.** Live module state (token cost, background-agent status, scheduler fires) flows over the
+**existing M16 push/`:subscribe` channel**, not a second socket connection. Every push payload gets a
+typed envelope — `{type: "chat" | "telemetry", topic, ...}` — and the desktop routes on `type`
+(then `topic`) to the owning module. We reserve `topic` now but ship with every subscriber receiving
+every event and filtering client-side; topic-filtered *subscriptions* (`:subscribe <topic>`) are a
+later evolution on the **same** transport, added only when a second consumer with divergent needs
+appears.
+
+**Why.** The expensive-to-change thing long-term is the **envelope schema, not the socket count**.
+A second transport doubles the failure surface (two reconnect paths, two liveness checks, split
+ordering between "the bot said X" and "cost is now Y") for isolation we don't need at this scale:
+telemetry here is low-frequency (per-turn cost, per-tick scheduler, agent transitions), so there's
+no flood that could starve chat on a shared serialized stream. The dashboard's growth adds *tiles*,
+not *clients* — it's still one desktop app on one socket routing by type. The genuinely future-proof
+design is topic-tagged events on one transport with optional subscription filters, and that is a
+strict superset of the typed-envelope approach — we grow into it, never rewrite toward it. Getting
+the envelope typed now (vs. an untyped blob) is what keeps that path open.
