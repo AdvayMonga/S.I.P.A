@@ -334,8 +334,27 @@ finish → done/error); `cli` wires `delegator.set_telemetry`. Desktop: `modules
 the live list (status dot + task), newest first. Rust needed no change — the `sipa-telemetry` router
 already passes any topic through. Verified: `make check` (112 tests) + `tsc`/`vite build`/`cargo`.
 
-**Next:** **Scheduler** (due/next scheduled tasks). Likely emit on the timer tick (`_make_fire_due`)
-+ when `schedule_task`/`cancel_task` run — read from `list_scheduled_tasks`. Same envelope.
+**Next (dashboard):** **Scheduler** tile (due/next scheduled tasks) — deferred behind M18 below.
+
+## M18 — concurrent chats (the switchboard) — BUILDING
+
+Daemon's one serial `Conversation` → a **flat pool of up to 5 concurrent chat threads** you switch
+between. One focused (chat module), the rest in the panel as status boxes; long work runs in the
+background, results wait quietly (a "ready" light), you pull them in on demand. Continuity stays in
+the memory layer (threads are transient); roster awareness lets threads know *that* siblings exist
+(not their contents). Per-thread **Stop** (cancel running) + **Resolve** (distill to memory, free
+the slot). Full design + decisions + staged build: `design/concurrent-chats.md`.
+
+**Ordered build (small commits):**
+1. **ThreadPool backend** — `Thread` + `ThreadPool` (create/submit/stop/resolve, cap 5, serial
+   within / concurrent across); daemon routes to a default thread; `threads` telemetry. Tests.
+2. **Thread-addressed socket protocol** — `:thread new` / `:thread <id>`; multi-thread messaging.
+3. **Roster awareness** — inject sibling `{label, status}` into each turn's context.
+4. **Stop** — cancel a thread's running turn (+ exec subprocess cancel hook).
+5. **Resolve** — per-thread M11 distill + remove + free slot.
+6. **Desktop switchboard** — focused chat + panel boxes + swap + ready-light + Stop/Resolve.
+
+Currently on **step 1 (ThreadPool backend)**.
 
 ## Later (not started)
 
