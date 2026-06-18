@@ -31,13 +31,14 @@ async fn send(thread_id: String, message: String) -> Result<(), String> {
     Ok(())
 }
 
-/// Fetch the current thread list as a JSON array — reliable initial state on mount (the on-subscribe
-/// push can race ahead of the frontend's listeners; this request/response can't).
+/// Fetch initial state for the slow-changing modules (threads + scheduler) as one JSON object —
+/// reliable initial state on mount (the on-subscribe push can race ahead of the frontend's
+/// listeners; this request/response can't). Modules read their slice, then apply pushed deltas.
 #[tauri::command]
-async fn list_threads() -> Result<String, String> {
+async fn snapshot() -> Result<String, String> {
     let (read_half, mut write_half) = connect().await?.into_split();
     write_half
-        .write_all(b":threads\n")
+        .write_all(b":snapshot\n")
         .await
         .map_err(|e| e.to_string())?;
     BufReader::new(read_half)
@@ -144,7 +145,7 @@ pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             send,
-            list_threads,
+            snapshot,
             new_thread,
             background_thread,
             stop_thread,

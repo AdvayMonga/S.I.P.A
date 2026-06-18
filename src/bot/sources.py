@@ -54,9 +54,10 @@ class SocketSource:
     `:subscribe` → push channel; `:thread new` → create a thread (id returned) then chat on it;
     `:thread <id>` → chat on an existing thread; anything else → chat on the default thread."""
 
-    def __init__(self, path: str, daemon: Daemon) -> None:
+    def __init__(self, path: str, daemon: Daemon, scheduled: Callable[[], Awaitable[str]]) -> None:
         self._path = path
         self._daemon = daemon  # thread management (create + addressed submit) lives on the daemon
+        self._scheduled = scheduled  # async () → scheduled-tasks JSON (for the `:snapshot` query)
 
     async def run(self, submit: Submit, register: Registrar) -> None:
         sock = Path(self._path)
@@ -76,8 +77,19 @@ class SocketSource:
                 elif header.startswith(":thread "):
                     tid = header[len(":thread ") :].strip()
                     await _serve_thread(self._daemon, tid, reader, writer)
-                elif header == ":threads":
-                    await _send(writer, json.dumps(self._daemon.thread_snapshot()))
+                elif header == ":snapshot":
+                    # Unified initial-state fetch for slow-changing modules (threads + scheduler):
+                    # one request/response the desktop seeds from on mount, then keeps current with
+                    # pushed deltas. See DECISIONS 2026-06-18.
+                    await _send(
+                        writer,
+                        json.dumps(
+                            {
+                                "threads": self._daemon.thread_snapshot(),
+                                "scheduled": json.loads(await self._scheduled()),
+                            }
+                        ),
+                    )
                 elif header.startswith(":background "):
                     bid = await self._daemon.background(header[len(":background ") :].strip())
                     await _send(writer, bid)

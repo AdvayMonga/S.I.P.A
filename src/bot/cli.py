@@ -187,8 +187,13 @@ async def _main() -> None:
         convo = pool.thread(pool.create("main")).convo  # the default thread, seeded warm below
         await _resume_session(convo, host)
 
+        async def scheduled() -> str:
+            # The scheduler tile's slice of `:snapshot` — the task list with computed due status.
+            listing, _ = await host.call_tool("list_scheduled_tasks", {})
+            return listing
+
         sources = [
-            SocketSource(str(settings.socket_path.resolve()), daemon),
+            SocketSource(str(settings.socket_path.resolve()), daemon, scheduled),
             TimerSource(_make_fire_due(host, daemon.notify), settings.timer_interval),
             StdinSource(),
         ]

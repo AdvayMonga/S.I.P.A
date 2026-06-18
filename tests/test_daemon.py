@@ -28,8 +28,13 @@ async def _echo(text: str, ask: Any = None) -> str:
     return text
 
 
-def _socket_task(sock: str, daemon: Daemon) -> "asyncio.Task[None]":
-    return asyncio.create_task(SocketSource(sock, daemon).run(daemon.submit, daemon.register_sink))
+async def _no_scheduled() -> str:
+    return "[]"
+
+
+def _socket_task(sock: str, daemon: Daemon, scheduled: Any = _no_scheduled) -> "asyncio.Task[None]":
+    src = SocketSource(sock, daemon, scheduled)
+    return asyncio.create_task(src.run(daemon.submit, daemon.register_sink))
 
 
 async def _read_topic(reader: asyncio.StreamReader, topic: str) -> dict:
@@ -68,6 +73,36 @@ def test_socket_round_trip() -> None:
 
         assert line1.decode().strip() == "echo:hi"
         assert line2.decode().strip() == "echo:again"
+        source.cancel()
+
+    try:
+        asyncio.run(scenario())
+    finally:
+        Path(sock).unlink(missing_ok=True)
+
+
+def test_snapshot_returns_threads_and_scheduled() -> None:
+    # The unified initial-state fetch: one JSON object with both slow-changing modules' state.
+    sock = f"/tmp/sipa_snap_{os.getpid()}.sock"
+
+    async def scenario() -> None:
+        daemon = Daemon(_pool(_echo))
+        daemon.create_thread("main")
+
+        async def scheduled() -> str:
+            return json.dumps([{"id": "abc", "prompt": "stand-up", "cadence": "daily"}])
+
+        source = _socket_task(sock, daemon, scheduled)
+        await asyncio.sleep(0.05)
+
+        reader, writer = await asyncio.open_unix_connection(sock)
+        writer.write(b":snapshot\n")
+        await writer.drain()
+        snap = json.loads((await asyncio.wait_for(reader.readline(), 1)).decode())
+        writer.close()
+
+        assert [t["label"] for t in snap["threads"]] == ["main"]
+        assert snap["scheduled"][0]["prompt"] == "stand-up"
         source.cancel()
 
     try:

@@ -79,3 +79,22 @@ Framework only: registry + grid (drag/snap/edit) + localStorage persistence + ad
 the **Chat** module (real, biggest) and a few **placeholder** tiles (Cost, Background Agents,
 Scheduler) that say "not wired yet". GUI is compile/build-verified here; visual pass + per-module
 state come next. Visual look will use the frontend-design skill.
+
+### Initial state — the `:snapshot` fetch (2026-06-18)
+
+Slow-changing modules (the switchboard's **threads**, the **scheduler** task list) can't rely on the
+on-subscribe push to seed initial state — it races React's `listen()` and the first snapshot is
+dropped (`DECISIONS.md` 2026-06-18). So they fetch a snapshot on mount via one request/response verb
+**`:snapshot`** → `{threads, scheduled}` (replaces the earlier per-module `:threads`/`list_threads`),
+retried until the daemon is reachable, then kept current by pushed deltas. A `scheduled()` callable
+(host → `list_scheduled_tasks`) is injected into `SocketSource`, keeping the daemon scheduler-agnostic.
+
+### Scheduler module (2026-06-18)
+
+`modules/Scheduler.tsx` renders the recurring tasks (`scheduler` MCP server) as a list: a due-dot
+(cool glow when due+enabled), the prompt, a cadence badge, and a relative last-run ("3d ago" / "never
+run"); disabled tasks dim. **Read-only** — it seeds from `:snapshot` and re-fetches whenever a `cost`
+telemetry snapshot arrives (a completed turn is the only thing that can change the schedule), so no
+new push topic is needed. Interactive edits (cancel / toggle / add) deferred to `BACKLOG.md`. The
+right-column footprint grew the **Threads** tile to `h6` (1.5×), rebalancing the stack to
+`Cost h3 · Threads h6 · Scheduler h3` so it still bottoms out level with Chat.

@@ -118,7 +118,7 @@ class Daemon:
         await self.emit_telemetry("threads", {"threads": self._pool.snapshot()})
 
     def thread_snapshot(self) -> list[dict[str, Any]]:
-        """The current thread list — the socket's `:threads` query (reliable initial state)."""
+        """The current thread list — part of the `:snapshot` query (reliable initial state)."""
         return self._pool.snapshot()
 
     async def run(self, sources: list[Source]) -> None:

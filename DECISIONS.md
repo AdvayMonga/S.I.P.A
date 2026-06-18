@@ -309,3 +309,14 @@ state reliable.
 **Deferred (`BACKLOG.md`).** If more slow-changing modules appear (e.g. the scheduler tile), unify
 the per-topic fetches into one `:snapshot` command returning all live module state at once, rather
 than N bespoke fetches. The `list_threads` fetch is the seed of that pattern.
+
+## 2026-06-18 — Executed the `:snapshot` unification (scheduler tile)
+
+**Decision.** The scheduler tile was the second slow-changing module, so — per the note above —
+`:threads`/`list_threads` is replaced by `:snapshot`, returning `{threads, scheduled}`. Threads and
+Scheduler both seed from it on mount (retry until the daemon is up). Rather than a new push topic,
+the read-only Scheduler tile **re-fetches `:snapshot` whenever cost telemetry arrives** — a completed
+turn is the only thing that can have changed the schedule (model scheduled/cancelled, or a task
+fired) — so it stays current with no extra backend wiring. The daemon stays scheduler-agnostic: a
+`scheduled()` callable (host → `list_scheduled_tasks`) is injected into `SocketSource`, mirroring how
+`fire_due` is injected into the timer. Tile is display-only; interactive edits deferred (`BACKLOG`).

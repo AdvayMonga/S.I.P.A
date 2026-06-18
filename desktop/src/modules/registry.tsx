@@ -2,17 +2,12 @@ import type { ComponentType } from "react";
 
 import { Chat } from "../components/Chat";
 import { CostModule } from "./Cost";
+import { SchedulerModule } from "./Scheduler";
 import { ThreadsModule } from "./Threads";
 
 /** A dashboard module = one capability's tile. `w`/`h` are its footprint in grid units (cols=12).
  * Each capability gets its own component, built individually; placeholders until their data exists. */
 export type Module = { id: string; title: string; w: number; h: number; Component: ComponentType };
-
-function Placeholder({ note }: { note: string }) {
-  return <p className="module-empty">{note}</p>;
-}
-
-const SchedulerModule = () => <Placeholder note="scheduled tasks — not wired yet" />;
 
 // `id: "agents"` is kept (not "threads") so existing saved layouts keep this tile in place — it's
 // the same panel slot, now the switchboard. Title/component changed to Threads.

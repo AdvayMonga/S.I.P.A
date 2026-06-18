@@ -47,8 +47,8 @@ export function ThreadsProvider({ children }: { children: ReactNode }) {
     (async () => {
       while (!cancelled) {
         try {
-          const list = JSON.parse(await invoke<string>("list_threads")) as ThreadMeta[];
-          if (!cancelled) setThreads(list);
+          const snap = JSON.parse(await invoke<string>("snapshot")) as { threads: ThreadMeta[] };
+          if (!cancelled) setThreads(snap.threads);
           return;
         } catch {
           await new Promise((r) => setTimeout(r, 1000));

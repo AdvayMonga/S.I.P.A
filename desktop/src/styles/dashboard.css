@@ -371,6 +371,69 @@
   }
 }
 
+/* ── scheduler (recurring tasks) ──────────────────────────── */
+.sched-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0;
+  padding: 8px;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sched {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+.sched--off {
+  opacity: 0.5;
+}
+.sched-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.sched-dot--due {
+  background: var(--signal-cool);
+  box-shadow: 0 0 8px var(--signal-cool);
+}
+.sched-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+.sched-meta {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+}
+.sched-cadence {
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 2px 7px;
+}
+.sched-run {
+  font-size: 10px;
+  color: var(--muted);
+}
+
 /* ── react-grid-layout overrides ──────────────────────────── */
 .react-grid-item.react-grid-placeholder {
   background: var(--signal-cool);

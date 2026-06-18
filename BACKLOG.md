@@ -114,7 +114,14 @@ the query; this is the first refinement once it's in use.
 
 ## From M19.x (desktop live state)
 
-- **Unified `:snapshot` command** — today the desktop fetches initial state per slow-changing module
-  (`list_threads`). If more such modules land (scheduler tile, etc.), replace the N bespoke fetches
-  with one `:snapshot` verb returning all live module state at once, fetched once on mount. See
-  `DECISIONS.md` 2026-06-18 (fetch-snapshot-on-mount + push-deltas).
+- ~~**Unified `:snapshot` command**~~ — done when the scheduler tile landed: `:snapshot` replaces
+  `:threads`/`list_threads`, returning `{threads, scheduled}` in one fetch. Threads + Scheduler both
+  seed from it on mount, then apply push deltas. (Each still fetches the verb separately; folding to
+  a single shared on-mount fetch is a later micro-opt.)
+
+## From scheduler tile
+
+- **Interactive scheduler tile** — the tile is display-only today (read the task list). Add
+  cancel / enable-toggle / add-task actions; needs new socket control verbs + store mutators
+  (`scheduler` server already has `cancel_task`; `enabled` toggle + UI add are new). The model can
+  already do all of this via chat, so this is convenience, not capability.
