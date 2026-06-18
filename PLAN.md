@@ -328,8 +328,14 @@ filtered *subscriptions* reserved for a future second consumer.
 `Token Usage` tile (`modules/Cost.tsx`) + the status-bar session cost now render live. Verified:
 `make check` (111 tests) + `tsc`/`vite build` + `cargo check`.
 
-**Next:** **Background Agents** (delegate/`delegate_background` status — needs the delegator to emit
-start/finish telemetry) then **Scheduler** (due/next from `list_scheduled_tasks`). Same envelope.
+**Background Agents — DONE (2026-06-17).** `BackgroundDelegator` tracks `{id, task, status}` per
+detached agent and pushes the full snapshot (topic `agents`) on every state change (start → running,
+finish → done/error); `cli` wires `delegator.set_telemetry`. Desktop: `modules/Agents.tsx` renders
+the live list (status dot + task), newest first. Rust needed no change — the `sipa-telemetry` router
+already passes any topic through. Verified: `make check` (112 tests) + `tsc`/`vite build`/`cargo`.
+
+**Next:** **Scheduler** (due/next scheduled tasks). Likely emit on the timer tick (`_make_fire_due`)
++ when `schedule_task`/`cancel_task` run — read from `list_scheduled_tasks`. Same envelope.
 
 ## Later (not started)
 

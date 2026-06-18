@@ -88,9 +88,9 @@ servers/       capabilities (independent MCP processes, spawned by the host):
   exec/          run_shell in EXEC_ROOT (off by default); approval-gated, unattended-denied
 desktop/       Tauri v2 dashboard (React+Vite+TS frontend + Rust shell) → daemon socket. Outside pkg.
                customizable module GRID (react-grid-layout v1.5): edit-mode drag/add/remove,
-               layout persisted to localStorage. Live modules: Chat + Token Usage (telemetry topic
-               "cost"). Background Agents / Scheduler still placeholder tiles. Telemetry rides one
-               typed push channel (TELEMETRY_PREFIX). See design/dashboard.md.
+               layout persisted to localStorage. Live modules: Chat + Token Usage (topic "cost") +
+               Background Agents (topic "agents"). Scheduler still a placeholder tile. Telemetry
+               rides one typed push channel (TELEMETRY_PREFIX). See design/dashboard.md.
 tests/
 data/          index.db, vault_search.db, scheduler_state.json (rebuildable) + memory.db
                (SOURCE OF TRUTH, not rebuildable). All gitignored.
@@ -149,8 +149,10 @@ set) → 25 aggregated tools, 26 with web.
 **Token Usage DONE (2026-06-17)** — one typed push channel (`TELEMETRY_PREFIX` + JSON `{topic, …}`
 alongside plain chat lines; daemon `emit_telemetry` / `after_turn`; desktop routes on prefix + topic
 via `telemetry.tsx`/`useTelemetry`). `ModelProvider.usage()` feeds a `cost` snapshot after every turn
-→ the Token Usage tile + status-bar cost render live. **Next: Background Agents, then Scheduler** —
-same envelope (decided: one channel not a separate transport, `DECISIONS.md` 2026-06-17).
+→ the Token Usage tile + status-bar cost render live. **Background Agents DONE (2026-06-17)** —
+`BackgroundDelegator` pushes an `agents` snapshot (per-agent `{id, task, status}`) on each state
+change → `modules/Agents.tsx` renders the live list. **Next: Scheduler** — same envelope (decided:
+one channel not a separate transport, `DECISIONS.md` 2026-06-17).
 
 Also buildable without input: graph one-hop, incremental reindex, wiring `LocalProvider` to a real
 runtime, the sandbox (unattended shell → autobuilder). All in `BACKLOG.md`. (Telegram dropped.)

@@ -13,6 +13,7 @@ from .provider import ModelProvider
 MAX_SUBAGENTS = 5  # concurrency cap — keeps fan-out (and cost) in control
 
 Notify = Callable[[int, str, str], Awaitable[None]]  # (id, task, result) -> deliver to the user
+EmitAgents = Callable[[list[dict[str, Any]]], Awaitable[None]]  # push the background-agent snapshot
 
 DELEGATE_TOOL: dict[str, Any] = {
     "name": "delegate",
@@ -84,18 +85,30 @@ class BackgroundDelegator:
         self._provider = provider
         self._host = host
         self._notify = notify
+        self._emit: EmitAgents | None = None  # telemetry sink for the Background Agents tile
         self._sem = asyncio.Semaphore(max_concurrent)
         self._count = 0
+        self._agents: dict[int, dict[str, Any]] = {}  # id -> {id, task, status}; the live snapshot
         self._tasks: set[asyncio.Task[None]] = set()  # hold refs so tasks aren't GC'd mid-flight
 
     def set_notify(self, notify: Notify) -> None:
         """Replace how finished results are delivered (e.g. route through the event router)."""
         self._notify = notify
 
+    def set_telemetry(self, emit: EmitAgents) -> None:
+        """Set the sink that receives a background-agent snapshot on every state change."""
+        self._emit = emit
+
+    async def _broadcast(self) -> None:
+        if self._emit is not None:
+            await self._emit([self._agents[i] for i in sorted(self._agents)])
+
     async def start(self, task: str) -> str:
         """Kick off `task` in the background; return an ack immediately."""
         self._count += 1
         task_id = self._count
+        self._agents[task_id] = {"id": task_id, "task": task, "status": "running"}
+        await self._broadcast()
         runner = asyncio.create_task(self._run(task_id, task))
         self._tasks.add(runner)
         runner.add_done_callback(self._tasks.discard)
@@ -107,6 +120,10 @@ class BackgroundDelegator:
         async with self._sem:
             try:
                 result = await run_turn(Conversation(), task, self._provider, self._host)
+                status = "error" if result.startswith("[error]") else "done"
             except Exception as exc:  # a failed background task must still report, not vanish
                 result = f"[error] {exc}"
+                status = "error"
+        self._agents[task_id]["status"] = status
+        await self._broadcast()
         await self._notify(task_id, task, result)

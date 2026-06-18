@@ -63,6 +63,16 @@ Cheapest slice: the daemon already computes per-call + running `cost_usd` (M12, 
 last-call delta: tokens in/out, `cost_usd`); the desktop's Token Usage tile renders the running
 session cost + a small per-call readout. Read-only view (no controls yet).
 
+### Background Agents module (2026-06-17)
+
+`BackgroundDelegator` (sub-agents) keeps a per-agent record `{id, task, status}` for each detached
+`delegate_background` task and pushes the **whole snapshot** (topic `agents`) on every state change —
+start → `running`, finish → `done`/`error`. Full-snapshot (not incremental) so the frontend just
+replaces its latest, no merge. `modules/Agents.tsx` renders the list newest-first with a status dot
+(running pulses). The full result still lands in chat via the existing notify path; the tile is
+status-only. Read-only for now (cancel is a later control). Fan-out `delegate` agents are *not*
+shown — they block the turn and the user is already waiting; this tile is for detached work.
+
 ## First build (the backbone)
 
 Framework only: registry + grid (drag/snap/edit) + localStorage persistence + add/remove menu, with

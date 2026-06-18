@@ -171,6 +171,12 @@ async def _main() -> None:
 
         daemon.after_turn = emit_cost
 
+        async def emit_agents(agents: list[dict]) -> None:
+            # On every background-agent state change, push the snapshot to the dashboard tile.
+            await daemon.emit_telemetry("agents", {"agents": agents})
+
+        delegator.set_telemetry(emit_agents)
+
         async def present_background(task_id: int, task: str, result: str) -> None:
             # Route the finished result through the router so the bot presents it in context (lands
             # in the conversation) and `daemon.notify` broadcasts it to every connected channel.

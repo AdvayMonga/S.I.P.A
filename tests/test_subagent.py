@@ -133,3 +133,25 @@ def test_background_delegate_path_through_run_turn() -> None:
     )
     assert reply == "on it"
     assert started == ["deep dive"]  # the background task was kicked off
+
+
+def test_background_delegator_emits_agent_telemetry() -> None:
+    async def scenario() -> None:
+        snapshots: list[list[dict]] = []
+        done = asyncio.Event()
+
+        async def emit(agents: list[dict]) -> None:
+            snapshots.append([dict(a) for a in agents])  # copy: status mutates in place
+
+        async def notify(task_id: int, task: str, result: str) -> None:
+            done.set()
+
+        delegator = BackgroundDelegator(EchoProvider(), FakeHost(), notify=notify)  # type: ignore[arg-type]
+        delegator.set_telemetry(emit)
+        await delegator.start("deep dive")
+        await asyncio.wait_for(done.wait(), 2)
+        # First snapshot = running on start; last = done after the task finished.
+        assert snapshots[0] == [{"id": 1, "task": "deep dive", "status": "running"}]
+        assert snapshots[-1] == [{"id": 1, "task": "deep dive", "status": "done"}]
+
+    asyncio.run(scenario())

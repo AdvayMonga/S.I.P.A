@@ -264,6 +264,64 @@
   color: var(--text);
 }
 
+/* ── background agents module ─────────────────────────────── */
+.agents {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0;
+  padding: 10px 12px;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.agent {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13px;
+}
+.agent-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.agent-dot--running {
+  background: var(--signal-warm);
+  box-shadow: 0 0 7px var(--signal-warm);
+  animation: beat 1.1s ease-in-out infinite;
+}
+.agent-dot--done {
+  background: var(--signal-cool);
+}
+.agent-dot--error {
+  background: #d2603f;
+}
+.agent-task {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+.agent-status {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+@media (prefers-reduced-motion: reduce) {
+  .agent-dot--running {
+    animation: none;
+  }
+}
+
 /* ── react-grid-layout overrides ──────────────────────────── */
 .react-grid-item.react-grid-placeholder {
   background: var(--signal-cool);
