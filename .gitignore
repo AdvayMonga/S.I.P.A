@@ -37,6 +37,10 @@ venv/
 coverage.xml
 htmlcov/
 
+# Local working scratch - content lives in design folder and git history
+PLAN.md
+HANDOFF.md
+
 # Editors / OS
 .idea/
 .vscode/

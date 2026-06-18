@@ -58,9 +58,12 @@ _Set at the start of the Foundation milestone, on 2026-06-13. Valid until revise
 - **One feature, one commit.** Each capability (per `VISION.md` §10 build order) lands on its
   own commit before the next starts. No "milestone everything" mega commit. Better smaller than
   larger; name each commit with `feat`/`fix`/the appropriate prefix and keep the message concise.
-- **Process docs ride with their code — no solo docs commits by default.** Updates to
-  `HANDOFF.md`/`PLAN.md`/`DECISIONS.md`/`BACKLOG.md` are bundled into the same commit as the code
-  change that motivated them, not split into their own commit. Two exceptions earn a standalone
+- **`PLAN.md` and `HANDOFF.md` are local scratch — gitignored, never committed.** They hold only
+  the feature in flight (`PLAN.md`) and the most recent session (`HANDOFF.md`); the durable narrative
+  lives in git history + `design/*.md` + `DECISIONS.md`/`BACKLOG.md`, so they don't ride along.
+- **Tracked process docs ride with their code — no solo docs commits by default.** Updates to
+  `DECISIONS.md`/`BACKLOG.md` are bundled into the same commit as the code change that motivated
+  them, not split into their own commit. Two exceptions earn a standalone
   docs commit: (a) a doc change we explicitly discussed and decided on its own, or (b) a change to
   a key rule/agreement that's about the docs or process *in general* (like this bullet) rather than
   tied to any code change.
@@ -92,8 +95,8 @@ set "just in case." Two families, on different axes:
 
 | File | Read it when… | Write it when… |
 |---|---|---|
-| `HANDOFF.md` | first thing, every session | session end — overwrite with current state |
-| `PLAN.md` | session start, right after HANDOFF | scope changes, a task completes, session end |
+| `HANDOFF.md` | first thing, every session | session end — overwrite with the *recent* state only (gitignored) |
+| `PLAN.md` | session start, right after HANDOFF | scope changes, a task completes, session end — *current feature only* (gitignored) |
 | `ARCHITECTURE.md` | starting a feature; need the system map | a component, boundary, or data flow actually changes |
 | `DESIGN.md` | finding a feature's design doc (it's the index) | a feature's design is added/built — update its blurb + link |
 | `design/<feature>.md` | before building that feature | while designing/building it; revise to as-built |
@@ -130,10 +133,12 @@ doc, then deleted.)
 - **DESIGN.md** — the *index* of feature designs: one blurb + status + link per feature. Holds
   **no design content itself** (that lives in `design/<feature>.md`).
 - **design/`<feature>`.md** — how one feature works internally. Kebab-cased after the feature.
-- **PLAN.md** — the work queue: scope, current task, next. Empties as work finishes.
+- **PLAN.md** — local scratchpad for the feature in flight: current task + the context that build
+  needs. Not a changelog — delete blurbs as they land; finished work lives in git history + `design/`.
 - **DECISIONS.md** — append-only log of *why* a non-obvious choice was made.
 - **BACKLOG.md** — append-only list of deferred work and review minors.
-- **HANDOFF.md** — the save-state: enough context to resume cold next session.
+- **HANDOFF.md** — the save-state: the *most recent* session + what's mid-flight, enough to resume
+  cold. Recent history only, not the whole project.
 
 ---
 
