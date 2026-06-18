@@ -53,6 +53,22 @@ A one-line preamble tells the model these are *candidates* (may be irrelevant) a
 path / `[[wikilink]]` it actually uses. The search tools stay available — auto-injection covers the
 ambient case; the model still calls tools for deep dives.
 
+## Query transformation (the retrieval query, not the literal message)
+
+Built later (BACKLOG §51b). Retrieval keys off a **rewritten** query, not the user's literal words.
+`src/bot/query.py:rewrite_query(provider, convo, msg)` resolves a context-dependent follow-up
+("what about the second one?") into a standalone, keyword-rich query using the rolling summary +
+last few turns — so the pronoun's *referent* is what gets embedded, not the vague surface form.
+
+Gated (`_needs_rewrite`): the model call fires **only** when there's prior history AND the message
+looks dependent (a pronoun/deixis marker, or ≤6 words). Standalone questions and turn-1 skip it —
+no added latency or cost. The rewrite is **retrieval-only**: never shown, never appended to
+`messages`, so a bad rewrite degrades recall slightly but never corrupts the conversation. On
+provider error or an empty rewrite it degrades to the raw message. The loop skips it entirely on
+trivial turns (they don't retrieve). This replaced the earlier blunt `summary[-500:] + msg` concat,
+which was empty before the first compaction (the common 2–3-turn case) and diluted rather than
+resolved.
+
 ## Token budget (one cap, allocated across sources)
 
 VISION says "token-capped". For M6, budget in **characters** (~4 chars/token heuristic) — a real

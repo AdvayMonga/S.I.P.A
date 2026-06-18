@@ -343,3 +343,22 @@ vault, ~1500 tok) with no relevance filter.
   text ~0.5), so 0.55 only drops clear misses. Not empirically calibrated yet — `MEM_MIN_SCORE` /
   `VAULT_MIN_SCORE` in `context.py` are the knobs. Known edge: a pure-keyword hit outside the
   vector pool has `sim`=0 and is gated out (acceptable; relevance trusts vector similarity).
+
+## 2026-06-18 — Context-assembly v2: query transformation, not rerank (BACKLOG §51b)
+
+**Problem.** Retrieval embedded the user's literal words. Vague follow-ups ("what about the second
+one?", "and the next step?") retrieved garbage — the pronoun never resolved to a referent. The
+earlier mitigation (prepend `summary[-500:]` to the query) was empty before the first compaction
+(the common 2–3-turn case) and *diluted* the query rather than *resolving* it.
+
+**Decisions.**
+- **Query transformation over reranking.** BACKLOG calls rerank "the single biggest jump," but
+  rerank only reorders an existing candidate pool — with a ~7-note vault and k=5 there is nothing to
+  reorder. Its leverage scales with corpus size; it's premature today. The failure here is the
+  *query*, not the *ranking*, and that fails at any scale → query transformation first.
+- **LLM rewrite, gated.** `query.py:rewrite_query` resolves a follow-up into a standalone query via
+  the rolling summary + recent turns. To keep the extra model call off most turns, `_needs_rewrite`
+  fires only with prior history AND a dependent-looking message (pronoun/deixis marker or ≤6 words).
+- **Retrieval-only, degrade to raw.** The rewrite is never shown and never appended to `messages`,
+  so a bad rewrite costs a little recall, never conversation integrity. Provider error / empty
+  rewrite → raw message. Trivial turns skip it (they don't retrieve).

@@ -57,9 +57,9 @@ the bot actually knows you across sessions — revisit when building this milest
 - **Retrieval quality (highest leverage).** Plain top-k similarity is mediocre. In priority order:
   (a) **rerank** the top ~N candidates with a cross-encoder — reads query+chunk together, usually the
   single biggest quality jump (VISION §12 already flags "add if precision is weak" — this is where);
-  (b) **query transformation** — rewrite the user's literal words before searching: resolve pronouns
-  from history, split into sub-queries, optionally HyDE (embed a hypothetical answer). Vague
-  follow-ups ("what about the second one?") retrieve garbage without this; (c) **chunking** tuning —
+  (b) **query transformation** — ~~rewrite the user's literal words before searching: resolve pronouns
+  from history~~ DONE 2026-06-18 (`query.py`, gated LLM rewrite; see DECISIONS). Still open under (b):
+  split into sub-queries, optionally HyDE (embed a hypothetical answer); (c) **chunking** tuning —
   overlapping windows, small-to-big (embed small, return the parent section).
 - **When to retrieve at all.** Today the model decides via tool calls (agentic retrieval — already
   good). For pushed assembly, add light routing so trivial turns ("thanks!") don't pull noise into
