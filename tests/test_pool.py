@@ -223,6 +223,45 @@ def test_resolve_removes_the_thread_and_frees_the_slot() -> None:
     asyncio.run(scenario())
 
 
+def test_background_hands_off_running_turn_without_restart() -> None:
+    async def scenario() -> None:
+        started = asyncio.Event()
+        release = asyncio.Event()
+        runs: list[str] = []
+
+        async def handle(convo: Conversation, text: str, ask: Any = None, roster: str = "") -> str:
+            runs.append(text)
+            started.set()
+            await release.wait()  # hold the turn open so we can hand it off mid-flight
+            return f"done:{text}"
+
+        pushed: list[tuple[str, str]] = []
+        done = asyncio.Event()
+
+        async def on_reply(tid: str, text: str) -> None:
+            pushed.append((tid, text))
+            done.set()
+
+        pool = _pool(handle)
+        pool.on_reply = on_reply
+        a = pool.create("a")
+        await pool.submit(a, "research")  # push client (no respond)
+        await asyncio.wait_for(started.wait(), 1)
+
+        bid = await pool.background(a)  # hand the running turn to a new thread
+        assert bid is not None and bid != a
+        assert pool.thread(a).status == "idle"  # source freed immediately
+        assert pool.thread(a).current is None
+        assert pool.thread(bid).status == "running"  # turn continues in B
+
+        release.set()
+        await asyncio.wait_for(done.wait(), 1)
+        assert runs == ["research"]  # ran once — no restart
+        assert pushed == [(bid, "done:research")]  # reply landed in B, not A
+
+    asyncio.run(scenario())
+
+
 def test_roster_lists_sibling_threads_not_self() -> None:
     async def scenario() -> None:
         seen: list[str] = []

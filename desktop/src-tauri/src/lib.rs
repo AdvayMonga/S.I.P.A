@@ -53,6 +53,22 @@ async fn answer_approval(id: String, answer: String) -> Result<(), String> {
     control(&format!(":answer {id} {answer}")).await
 }
 
+/// Hand a thread's running turn off to a fresh thread; returns the new thread's id (empty if idle).
+#[tauri::command]
+async fn background_thread(id: String) -> Result<String, String> {
+    let (read_half, mut write_half) = connect().await?.into_split();
+    write_half
+        .write_all(format!(":background {id}\n").as_bytes())
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(BufReader::new(read_half)
+        .lines()
+        .next_line()
+        .await
+        .map_err(|e| e.to_string())?
+        .unwrap_or_default())
+}
+
 #[tauri::command]
 async fn stop_thread(id: String) -> Result<(), String> {
     control(&format!(":stop {id}")).await
@@ -106,6 +122,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             send,
             new_thread,
+            background_thread,
             stop_thread,
             resolve_thread,
             answer_approval

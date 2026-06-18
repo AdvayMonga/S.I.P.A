@@ -418,6 +418,26 @@
   color: var(--muted);
   letter-spacing: 0.15em;
 }
+.working {
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.to-bg {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  background: transparent;
+  color: var(--signal-cool);
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+.to-bg:hover {
+  border-color: var(--signal-cool);
+}
 .composer-send:disabled {
   opacity: 0.45;
   cursor: default;

@@ -393,10 +393,13 @@ is user-driven only. Full design + decisions: `design/concurrent-chats.md` § Fl
 3. **Remove model `delegate_background`** — DONE (2026-06-18). `BackgroundDelegator` +
    `DELEGATE_BACKGROUND_TOOL` deleted; `run_turn`/`_make_handle` lose `spawn_background`; `cli` loses
    the delegator + `present_background` + `agents` telemetry. `delegate` fan-out untouched.
-4. **Hand-off** — `background_thread` command + `pool.background`; desktop "→ background" button.
+4. **Hand-off** — DONE (2026-06-18). `pool.background(tid)` lifts the running turn into a fresh
+   thread (live, no restart): B takes the live convo + turn (`owner_id`→B), source rolls back to
+   `start_len` and goes idle. `:background <id>` verb + Rust `background_thread` + desktop "⤳ send to
+   background" button (mirrors by moving the in-flight request from A's transcript to B's). Tested.
 5. **Merge** — `merge_thread` command + `pool.merge`; desktop "Merge" button.
 
-Currently on **step 4 (hand-off)**.
+Currently on **step 5 (merge)**.
 
 ## Later (not started)
 

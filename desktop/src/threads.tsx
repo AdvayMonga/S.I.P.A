@@ -21,6 +21,7 @@ type ThreadsCtx = {
   send: (text: string) => Promise<void>;
   swap: (id: string) => void;
   newThread: () => Promise<void>;
+  background: () => Promise<void>;
   stop: (id: string) => Promise<void>;
   resolve: (id: string) => Promise<void>;
   answerApproval: (answer: string) => Promise<void>;
@@ -126,6 +127,23 @@ export function ThreadsProvider({ children }: { children: ReactNode }) {
     swap(id);
   }
 
+  // Hand the focused thread's running turn to a new thread; stay here, keep chatting.
+  async function background() {
+    const a = focusedRef.current;
+    if (!a || !pendingSet.has(a)) return;
+    const bid = await invoke<string>("background_thread", { id: a });
+    if (!bid) return;
+    // Mirror the backend hand-off: move the in-flight request (trailing user msg) from A to B.
+    setTranscripts((t) => {
+      const aMsgs = t[a] ?? [];
+      const idx = aMsgs.map((m) => m.role).lastIndexOf("user");
+      if (idx < 0) return t;
+      return { ...t, [a]: aMsgs.slice(0, idx), [bid]: [...(t[bid] ?? []), ...aMsgs.slice(idx)] };
+    });
+    clearPending(a);
+    setPendingSet((p) => new Set(p).add(bid));
+  }
+
   const stop = (id: string) => invoke("stop_thread", { id }).then(() => {});
   const resolve = (id: string) => invoke("resolve_thread", { id }).then(() => {});
 
@@ -151,6 +169,7 @@ export function ThreadsProvider({ children }: { children: ReactNode }) {
     send,
     swap,
     newThread,
+    background,
     stop,
     resolve,
     answerApproval,

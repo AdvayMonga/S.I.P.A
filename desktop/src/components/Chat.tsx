@@ -7,7 +7,8 @@ import { useThreads } from "../threads";
  * route per thread across swaps); this is the focused thread's view. The main module. */
 export function Chat() {
   const { setBusy } = useBusy();
-  const { transcript, pending, send: sendThread, focused, approval, answerApproval } = useThreads();
+  const { transcript, pending, send: sendThread, focused, approval, answerApproval, background } =
+    useThreads();
   const [input, setInput] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
   const messages = transcript;
@@ -40,7 +41,14 @@ export function Chat() {
             </div>
           ))
         )}
-        {pending && <div className="bubble bubble--sipa pending">…</div>}
+        {pending && (
+          <div className="working">
+            <span className="bubble bubble--sipa pending">…</span>
+            <button className="to-bg" onClick={() => background()}>
+              ⤳ send to background
+            </button>
+          </div>
+        )}
         {approval && (
           <div className="approval">
             <div className="approval-q">⚠ {approval.question}</div>

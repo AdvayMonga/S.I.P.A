@@ -166,6 +166,41 @@ class ThreadPool:
             text, ask, respond = owner.pending.popleft()
             await self._start(owner, text, ask, respond)
 
+    @staticmethod
+    def _task_label(turn: Turn) -> str:
+        """The user message that started this turn (for naming a handed-off thread), if present."""
+        msgs = turn.convo.messages
+        if turn.start_len < len(msgs) and isinstance(msgs[turn.start_len], dict):
+            return str(msgs[turn.start_len].get("content", ""))[:40]
+        return ""
+
+    async def background(self, tid: str) -> str | None:
+        """Hand a thread's running turn off to a fresh thread, live (no restart). The new thread
+        takes the running turn + its conversation; the source rolls back to before this turn and
+        goes idle. Returns the new thread's id, or None if nothing was running."""
+        src = self._threads.get(tid)
+        if src is None or src.current is None:
+            return None
+        turn = src.current
+        bid = self.create()  # may raise PoolFull
+        b = self._threads[bid]
+        b.label = self._task_label(turn) or src.label  # name B after the task it's running
+        b.convo = turn.convo  # the live object the turn is mutating
+        b.current = turn
+        b.status = "running"
+        turn.owner_id = bid  # its reply now lands in B
+        src.convo = Conversation(
+            messages=list(turn.convo.messages[: turn.start_len]),  # pre-turn prefix only
+            summary=turn.convo.summary,
+        )
+        src.current = None
+        src.status = "idle"
+        await self._changed()
+        if src.pending:
+            text, ask, respond = src.pending.popleft()
+            await self._start(src, text, ask, respond)
+        return bid
+
     async def stop(self, tid: str) -> None:
         """Cancel a thread's in-flight turn (if any). The turn resolves to '[stopped]', idle."""
         thread = self._threads.get(tid)

@@ -78,6 +78,11 @@ class Daemon:
         """Push a turn's reply tagged by thread (wired to the pool's on_reply)."""
         await self.emit_telemetry("reply", {"thread": tid, "text": text})
 
+    async def background(self, tid: str) -> str:
+        """Hand a thread's running turn off to a fresh thread — the socket's `:background <id>`.
+        Returns the new thread's id (empty if nothing was running)."""
+        return await self._pool.background(tid) or ""
+
     async def stop(self, tid: str) -> None:
         """Cancel a thread's in-flight turn — the socket's `:stop <id>`."""
         await self._pool.stop(tid)
