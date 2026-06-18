@@ -7,7 +7,7 @@ import { DEFAULT_LAYOUT, MODULES } from "../modules/registry";
 import { Tile } from "./Tile";
 
 const Grid = WidthProvider(GridLayout);
-const STORE_KEY = "sipa.dashboard.v2";
+const STORE_KEY = "sipa.dashboard.v3"; // bumped: new default right-column stack (taller Threads)
 
 type Saved = { layout: Layout[]; enabled: string[] };
 

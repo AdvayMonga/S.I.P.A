@@ -18,15 +18,16 @@ const SchedulerModule = () => <Placeholder note="scheduled tasks — not wired y
 // the same panel slot, now the switchboard. Title/component changed to Threads.
 export const MODULES: Module[] = [
   { id: "chat", title: "Chat", w: 7, h: 12, Component: Chat },
-  { id: "cost", title: "Token Usage", w: 5, h: 4, Component: CostModule },
-  { id: "agents", title: "Threads", w: 5, h: 4, Component: ThreadsModule },
-  { id: "scheduler", title: "Scheduler", w: 5, h: 4, Component: SchedulerModule },
+  { id: "cost", title: "Token Usage", w: 5, h: 3, Component: CostModule },
+  { id: "agents", title: "Threads", w: 5, h: 6, Component: ThreadsModule },
+  { id: "scheduler", title: "Scheduler", w: 5, h: 3, Component: SchedulerModule },
 ];
 
-// Default arrangement (chat large on the left; capability tiles stacked on the right).
+// Default arrangement: chat large on the left; right column = a 12-row stack that bottoms out level
+// with chat. Threads gets the lion's share (h6, the switchboard); Cost/Scheduler flank it at h3.
 export const DEFAULT_LAYOUT = [
   { i: "chat", x: 0, y: 0, w: 7, h: 12 },
-  { i: "cost", x: 7, y: 0, w: 5, h: 4 },
-  { i: "agents", x: 7, y: 4, w: 5, h: 4 },
-  { i: "scheduler", x: 7, y: 8, w: 5, h: 4 },
+  { i: "cost", x: 7, y: 0, w: 5, h: 3 },
+  { i: "agents", x: 7, y: 3, w: 5, h: 6 },
+  { i: "scheduler", x: 7, y: 9, w: 5, h: 3 },
 ];
