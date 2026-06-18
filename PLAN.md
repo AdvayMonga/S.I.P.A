@@ -346,15 +346,18 @@ the memory layer (threads are transient); roster awareness lets threads know *th
 the slot). Full design + decisions + staged build: `design/concurrent-chats.md`.
 
 **Ordered build (small commits):**
-1. **ThreadPool backend** — `Thread` + `ThreadPool` (create/submit/stop/resolve, cap 5, serial
-   within / concurrent across); daemon routes to a default thread; `threads` telemetry. Tests.
+1. **ThreadPool backend** — DONE (2026-06-17). `src/bot/pool.py`: `Thread` + `ThreadPool`
+   (create/submit/stop/resolve, cap 5, serial within / concurrent across, `threads` snapshot via
+   `on_change`). `daemon.py`'s queue+router → the pool bridge (push channel kept); `cli` builds the
+   pool + a seeded "main" default thread. Behaviour-preserving for one thread. `test_pool.py` covers
+   delivery, error isolation, cap, concurrency, stop, resolve. `make check` green (117 tests).
 2. **Thread-addressed socket protocol** — `:thread new` / `:thread <id>`; multi-thread messaging.
 3. **Roster awareness** — inject sibling `{label, status}` into each turn's context.
 4. **Stop** — cancel a thread's running turn (+ exec subprocess cancel hook).
-5. **Resolve** — per-thread M11 distill + remove + free slot.
+5. **Resolve** — per-thread M11 distill + remove + free slot (pool hook exists; wire `cli.distill`).
 6. **Desktop switchboard** — focused chat + panel boxes + swap + ready-light + Stop/Resolve.
 
-Currently on **step 1 (ThreadPool backend)**.
+Currently on **step 2 (thread-addressed socket protocol)**.
 
 ## Later (not started)
 

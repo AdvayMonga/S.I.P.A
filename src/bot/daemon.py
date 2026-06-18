@@ -1,13 +1,15 @@
-"""The always-on core: a single serialized turn-processor (the event router) fed by event sources.
-
-One conversation, one queue — turns run one at a time, so sources (stdin, socket, timer) all feed
-the same brain without racing. See design/daemon.md."""
+"""The always-on core: the push channel (proactive output sinks + telemetry) and the bridge from
+event sources to the thread pool. Turns run in the pool now — serial within a thread, concurrent
+across threads — so a long turn no longer freezes the others. The daemon wires sources to the pool
+and broadcasts proactive messages. See design/daemon.md + design/concurrent-chats.md."""
 
 import asyncio
 import json
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
+
+if TYPE_CHECKING:
+    from .pool import ThreadPool
 
 ASK_PREFIX = "\x01?"  # a socket line starting with this is a question, not a reply (clients prompt)
 TELEMETRY_PREFIX = "\x01T"  # a pushed line with this prefix is a telemetry snapshot (JSON)
@@ -22,34 +24,20 @@ class Submit(Protocol):
     async def __call__(self, text: str, respond: Respond, ask: Ask | None = None) -> None: ...
 
 
-class Handler(Protocol):
-    async def __call__(self, text: str, ask: Ask | None = None) -> str: ...
-
-
-@dataclass
-class Event:
-    """An inbound request: text to process, how to reply, and (if interactive) how to ask back.
-    `ask is None` marks an unattended event (timer, background) — no human to answer."""
-
-    text: str
-    respond: Respond
-    ask: Ask | None = None
-
-
 class Source(Protocol):
     async def run(self, submit: Submit, register: Registrar) -> None: ...
 
 
 class Daemon:
-    def __init__(self, handle: Handler) -> None:
-        self._handle = handle
-        self._queue: asyncio.Queue[Event] = asyncio.Queue()
+    """The push channel + source→pool bridge. Holds the thread pool; `submit` routes a source's
+    message to the pool's default thread (per-thread addressing comes with the socket protocol)."""
+
+    def __init__(self, pool: "ThreadPool") -> None:
+        self._pool = pool
         self._sinks: set[Sink] = set()  # connected output channels for proactive messages
-        # Optional post-turn hook — e.g. broadcast a cost snapshot after every turn (wired by cli).
-        self.after_turn: Callable[[], Awaitable[None]] | None = None
 
     async def submit(self, text: str, respond: Respond, ask: Ask | None = None) -> None:
-        await self._queue.put(Event(text, respond, ask))
+        await self._pool.submit(self._pool.default_thread(), text, respond, ask)
 
     def register_sink(self, sink: Sink) -> Callable[[], None]:
         """A source registers an output channel; returns a fn to unregister it on disconnect."""
@@ -66,28 +54,13 @@ class Daemon:
                 pass
 
     async def emit_telemetry(self, topic: str, payload: dict[str, Any]) -> None:
-        """Broadcast a typed state snapshot for one module (cost, agents, scheduler …) over the same
+        """Broadcast a typed state snapshot for one module (cost, agents, threads …) over the same
         push channel as chat — the desktop routes on the prefix + topic. See design/dashboard.md."""
         await self.notify(TELEMETRY_PREFIX + json.dumps({"topic": topic, **payload}))
 
-    async def _router(self) -> None:
-        while True:
-            event = await self._queue.get()
-            try:
-                reply = await self._handle(event.text, event.ask)
-            except Exception as exc:  # one bad turn must never kill the daemon
-                reply = f"[error] {exc}"
-            await event.respond(reply)
-            if self.after_turn is not None:
-                try:
-                    await self.after_turn()
-                except Exception:  # telemetry is best-effort; never let it break the router
-                    pass
-            self._queue.task_done()
-
     async def run(self, sources: list[Source]) -> None:
-        """Run the router and every source until one raises (e.g. stdin EOF → ShutdownSignal)."""
+        """Run every source until one raises (e.g. stdin EOF → ShutdownSignal). Turns themselves run
+        in the pool, spawned per-submit — no central router task."""
         async with asyncio.TaskGroup() as tg:
-            tg.create_task(self._router())
             for source in sources:
                 tg.create_task(source.run(self.submit, self.register_sink))

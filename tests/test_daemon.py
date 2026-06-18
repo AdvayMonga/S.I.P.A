@@ -7,58 +7,26 @@ from typing import Any
 
 from anthropic.types import TextBlock
 
-from bot.cli import _make_handler
+from bot.cli import _make_handle
 from bot.conversation import Conversation
 from bot.daemon import ASK_PREFIX, TELEMETRY_PREFIX, Daemon
 from bot.loop import Approver
+from bot.pool import ThreadPool
 from bot.sources import SocketSource, TimerSource
 from bot.subagent import BackgroundDelegator
 
 
-def test_router_delivers_reply() -> None:
-    async def scenario() -> None:
-        async def handle(text: str, ask: Any = None) -> str:
-            return text.upper()
+def _pool(handle: Any) -> ThreadPool:
+    """Wrap a simple (text, ask) -> str handle into a ThreadPool for the daemon/socket tests."""
 
-        daemon = Daemon(handle)
-        router = asyncio.create_task(daemon._router())
-        out: list[str] = []
-        done = asyncio.Event()
+    async def h(convo: Conversation, text: str, ask: Any = None) -> str:
+        return await handle(text, ask)
 
-        async def respond(reply: str) -> None:
-            out.append(reply)
-            done.set()
-
-        await daemon.submit("hello", respond)
-        await asyncio.wait_for(done.wait(), 1)
-        router.cancel()
-        assert out == ["HELLO"]
-
-    asyncio.run(scenario())
+    return ThreadPool(h)
 
 
-def test_router_isolates_handler_errors() -> None:
-    async def scenario() -> None:
-        async def handle(text: str, ask: Any = None) -> str:
-            raise ValueError("boom")
-
-        daemon = Daemon(handle)
-        router = asyncio.create_task(daemon._router())
-        out: list[str] = []
-        done = asyncio.Event()
-
-        async def respond(reply: str) -> None:
-            out.append(reply)
-            done.set()
-
-        await daemon.submit("x", respond)
-        await asyncio.wait_for(done.wait(), 1)
-        # The daemon survives and turns the failure into a reply.
-        assert not router.done()
-        router.cancel()
-        assert out[0].startswith("[error]") and "boom" in out[0]
-
-    asyncio.run(scenario())
+async def _echo(text: str, ask: Any = None) -> str:
+    return text
 
 
 def test_socket_round_trip() -> None:
@@ -69,8 +37,7 @@ def test_socket_round_trip() -> None:
         async def handle(text: str, ask: Any = None) -> str:
             return f"echo:{text}"
 
-        daemon = Daemon(handle)
-        router = asyncio.create_task(daemon._router())
+        daemon = Daemon(_pool(handle))
         source = asyncio.create_task(SocketSource(sock).run(daemon.submit, daemon.register_sink))
         await asyncio.sleep(0.05)  # let the server bind
 
@@ -85,7 +52,6 @@ def test_socket_round_trip() -> None:
 
         assert line1.decode().strip() == "echo:hi"
         assert line2.decode().strip() == "echo:again"
-        router.cancel()
         source.cancel()
 
     try:
@@ -100,6 +66,9 @@ class _FakeProvider:
             content=[TextBlock(type="text", text="pong")], stop_reason="end_turn"
         )
 
+    def usage(self) -> dict:
+        return {}
+
 
 class _FakeHost:
     """Empty stores → assemble_context degrades to the base prompt; no tools."""
@@ -112,17 +81,14 @@ class _FakeHost:
 
 
 def test_real_handler_wiring_over_socket() -> None:
-    # Exercises cli._make_handler → run_turn → context assembly end to end (fakes, no API).
+    # Exercises cli._make_handle → pool → run_turn → context assembly end to end (fakes, no API).
     sock = f"/tmp/sipa_wiring_{os.getpid()}.sock"
 
     async def scenario() -> None:
         provider, fhost = _FakeProvider(), _FakeHost()
         delegator = BackgroundDelegator(provider, fhost)  # type: ignore[arg-type]
-        handle = _make_handler(
-            Conversation(), provider, fhost, delegator, Approver()  # type: ignore[arg-type]
-        )
-        daemon = Daemon(handle)
-        router = asyncio.create_task(daemon._router())
+        handle = _make_handle(provider, fhost, delegator, Approver())  # type: ignore[arg-type]
+        daemon = Daemon(ThreadPool(handle))
         source = asyncio.create_task(SocketSource(sock).run(daemon.submit, daemon.register_sink))
         await asyncio.sleep(0.05)
 
@@ -132,7 +98,6 @@ def test_real_handler_wiring_over_socket() -> None:
         line = await asyncio.wait_for(reader.readline(), 1)
         writer.close()
         assert line.decode().strip() == "pong"
-        router.cancel()
         source.cancel()
 
     try:
@@ -150,8 +115,7 @@ def test_socket_ask_round_trip() -> None:
             answer = await ask(f"confirm {text}")  # mid-turn question
             return f"did:{text}:{answer}"
 
-        daemon = Daemon(handle)
-        router = asyncio.create_task(daemon._router())
+        daemon = Daemon(_pool(handle))
         source = asyncio.create_task(SocketSource(sock).run(daemon.submit, daemon.register_sink))
         await asyncio.sleep(0.05)
 
@@ -166,7 +130,6 @@ def test_socket_ask_round_trip() -> None:
         reply = await asyncio.wait_for(reader.readline(), 1)
         assert reply.decode().strip() == "did:delete X:yes"
         writer.close()
-        router.cancel()
         source.cancel()
 
     try:
@@ -199,7 +162,7 @@ def _noreg(_sink: Any) -> Any:
 
 def test_notify_broadcasts_to_registered_sinks() -> None:
     async def scenario() -> None:
-        daemon = Daemon(_echo)
+        daemon = Daemon(_pool(_echo))
         got_a: list[str] = []
         got_b: list[str] = []
 
@@ -222,7 +185,7 @@ def test_notify_broadcasts_to_registered_sinks() -> None:
 
 def test_emit_telemetry_is_a_typed_envelope() -> None:
     async def scenario() -> None:
-        daemon = Daemon(_echo)
+        daemon = Daemon(_pool(_echo))
         got: list[str] = []
 
         async def sink(msg: str) -> None:
@@ -238,40 +201,11 @@ def test_emit_telemetry_is_a_typed_envelope() -> None:
     asyncio.run(scenario())
 
 
-def test_after_turn_hook_fires_after_each_turn() -> None:
-    async def scenario() -> None:
-        daemon = Daemon(_echo)
-        fired: list[int] = []
-
-        async def after() -> None:
-            fired.append(1)
-
-        daemon.after_turn = after
-        router = asyncio.create_task(daemon._router())
-        done = asyncio.Event()
-
-        async def respond(reply: str) -> None:
-            done.set()
-
-        await daemon.submit("hi", respond)
-        await asyncio.wait_for(done.wait(), 1)
-        await asyncio.sleep(0)  # let the hook run after respond
-        router.cancel()
-        assert fired == [1]
-
-    asyncio.run(scenario())
-
-
-async def _echo(text: str, ask: Any = None) -> str:
-    return text
-
-
 def test_subscribe_connection_receives_pushes() -> None:
     sock = f"/tmp/sipa_sub_{os.getpid()}.sock"
 
     async def scenario() -> None:
-        daemon = Daemon(_echo)
-        router = asyncio.create_task(daemon._router())
+        daemon = Daemon(_pool(_echo))
         source = asyncio.create_task(SocketSource(sock).run(daemon.submit, daemon.register_sink))
         await asyncio.sleep(0.05)
 
@@ -283,7 +217,6 @@ def test_subscribe_connection_receives_pushes() -> None:
         line = await asyncio.wait_for(reader.readline(), 1)
         assert line.decode().strip() == "background done"
         writer.close()
-        router.cancel()
         source.cancel()
 
     try:

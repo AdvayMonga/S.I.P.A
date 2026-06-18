@@ -10,9 +10,10 @@ from mcp import StdioServerParameters
 
 from .config import Settings
 from .conversation import Conversation, finalize_summary
-from .daemon import Ask, Daemon, Handler, Respond, Submit
+from .daemon import Ask, Daemon, Respond, Submit
 from .host import MCPHost
 from .loop import Approver, run_turn
+from .pool import ThreadPool
 from .provider import ModelProvider, make_provider
 from .sources import ShutdownSignal, SocketSource, StdinSource, TimerSource
 from .subagent import BackgroundDelegator
@@ -66,16 +67,15 @@ def _servers(settings: Settings) -> dict[str, StdioServerParameters]:
     return servers
 
 
-def _make_handler(
-    convo: Conversation,
+def _make_handle(
     provider: ModelProvider,
     host: MCPHost,
     delegator: BackgroundDelegator,
     approver: Approver,
-) -> Handler:
-    """The turn-processor the router calls per event — one shared conversation, serialized."""
+):
+    """The per-thread turn-processor the pool calls — runs a turn on that thread's conversation."""
 
-    async def handle(text: str, ask: Ask | None = None) -> str:
+    async def handle(convo: Conversation, text: str, ask: Ask | None = None) -> str:
         return await run_turn(
             convo,
             text,
@@ -159,17 +159,24 @@ async def _main() -> None:
     settings = Settings()  # type: ignore[call-arg]  # loaded from env / .env
     provider = make_provider(settings)
     async with MCPHost(_servers(settings)) as host:
-        convo = Conversation()
-        await _resume_session(convo, host)
         delegator = BackgroundDelegator(provider, host)
         approver = Approver(settings.approval_mode)
-        daemon = Daemon(_make_handler(convo, provider, host, delegator, approver))
+        pool = ThreadPool(_make_handle(provider, host, delegator, approver))
+        daemon = Daemon(pool)
 
         async def emit_cost() -> None:
             # After every turn, push running token/cost totals to the dashboard's Token Usage tile.
             await daemon.emit_telemetry("cost", provider.usage())
 
-        daemon.after_turn = emit_cost
+        async def emit_threads(threads: list[dict]) -> None:
+            # On every thread state change, push the pool snapshot to the switchboard panel.
+            await daemon.emit_telemetry("threads", {"threads": threads})
+
+        pool.after_turn = emit_cost
+        pool.on_change = emit_threads
+
+        convo = pool.thread(pool.create("main")).convo  # the default thread, seeded warm below
+        await _resume_session(convo, host)
 
         async def emit_agents(agents: list[dict]) -> None:
             # On every background-agent state change, push the snapshot to the dashboard tile.
