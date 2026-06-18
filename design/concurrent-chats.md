@@ -69,9 +69,13 @@ actions:
   `finalize_summary` → supersede/append episode), clear its context, remove it, free the slot.
   Shown when `idle`/`ready`. Resolving a `running` thread = stop-then-resolve.
 
-**Cancellation note:** most tools cancel cleanly via asyncio. The `exec` server's `run_shell` may
-have a live subprocess — needs a cancel hook (terminate the subprocess on cancellation) so Stop is
-prompt. Designed in at the exec seam; flagged as the one non-trivial cancellation case.
+**Cancellation (as-built).** Stop cancels the thread's turn task; `run_turn` catches
+`CancelledError` and **rolls the stopped turn out of the conversation** (back to the pre-message
+length) so no orphaned `tool_use` is left — the next turn on that thread stays alternation-valid.
+Cancelling mid-`host.call_tool` is safe: the MCP session multiplexes by request id, so a late
+response to the abandoned request is just dropped. The one imperfection: a `run_shell` subprocess in
+the `exec` server keeps running until its own timeout cap (Stop is still prompt for the user). A
+tighter kill-on-cancel needs cross-process MCP cancellation — deferred (`BACKLOG.md`).
 
 ## Backend changes
 

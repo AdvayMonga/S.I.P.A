@@ -44,6 +44,32 @@ def test_runaway_turn_hits_hard_cap() -> None:
     assert convo.messages[-1]["role"] == "assistant"  # ends alternating, valid for next turn
 
 
+def test_stopped_turn_leaves_valid_history() -> None:
+    # Cancelling mid-tool-call must not leave an orphaned tool_use (would break the next turn).
+    async def scenario() -> None:
+        class SlowHost:
+            async def call_tool(self, name: str, arguments: dict) -> tuple[str, bool]:
+                await asyncio.sleep(10)  # block in the tool call so we can cancel mid-turn
+                return ("", False)
+
+            def tools_for_model(self) -> list:
+                return []
+
+        convo = Conversation()
+        turn = asyncio.create_task(
+            run_turn(convo, "go", LoopingProvider(), SlowHost())  # type: ignore[arg-type]
+        )
+        await asyncio.sleep(0.05)  # let it append the user msg + assistant tool_use, then block
+        turn.cancel()
+        try:
+            await turn
+        except asyncio.CancelledError:
+            pass
+        assert convo.messages == []  # the stopped turn was rolled back cleanly
+
+    asyncio.run(scenario())
+
+
 def test_normal_turn_does_not_trip_cap() -> None:
     provider = OneShotProvider()
     reply = asyncio.run(run_turn(Conversation(), "hi", provider, FakeHost()))  # type: ignore[arg-type]

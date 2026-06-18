@@ -1,5 +1,6 @@
 """Stateless agent loop: model call -> tool calls -> repeat until a final answer."""
 
+import asyncio
 import json
 import logging
 from collections.abc import Awaitable, Callable
@@ -94,7 +95,27 @@ async def run_turn(
     tools = host.tools_for_model()
     if allow_delegate:
         tools = [*tools, DELEGATE_TOOL, DELEGATE_BACKGROUND_TOOL]
+    start_len = len(convo.messages)  # roll back to here if the turn is stopped (keeps alternation)
     convo.messages.append({"role": "user", "content": user_message})
+    try:
+        return await _run_loop(
+            convo, system, tools, provider, host, spawn_background, ask, approver
+        )
+    except asyncio.CancelledError:
+        del convo.messages[start_len:]  # discard the stopped turn — no orphaned tool_use
+        raise
+
+
+async def _run_loop(
+    convo: Conversation,
+    system: str,
+    tools: list[Any],
+    provider: ModelProvider,
+    host: MCPHost,
+    spawn_background: Callable[[str], Awaitable[str]] | None,
+    ask: Ask | None,
+    approver: "Approver | None",
+) -> str:
     iterations = 0
     while True:
         iterations += 1

@@ -49,6 +49,14 @@ class Daemon:
         """Route a message to a specific thread — the socket's `:thread <id>` path."""
         await self._pool.submit(tid, text, respond, ask)
 
+    async def stop(self, tid: str) -> None:
+        """Cancel a thread's in-flight turn — the socket's `:stop <id>`."""
+        await self._pool.stop(tid)
+
+    async def resolve(self, tid: str) -> None:
+        """Close a thread (distill to memory, free the slot) — the socket's `:resolve <id>`."""
+        await self._pool.resolve(tid)
+
     def register_sink(self, sink: Sink) -> Callable[[], None]:
         """A source registers an output channel; returns a fn to unregister it on disconnect."""
         self._sinks.add(sink)

@@ -75,6 +75,9 @@ class SocketSource:
                 elif header.startswith(":thread "):
                     tid = header[len(":thread ") :].strip()
                     await _serve_thread(self._daemon, tid, reader, writer)
+                elif header.startswith(":stop "):
+                    await self._daemon.stop(header[len(":stop ") :].strip())
+                    await _send(writer, "ok")
                 else:  # legacy: a plain message on the default thread (sipa-client)
                     await _converse(reader, writer, submit, first=first)
             finally:

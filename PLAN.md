@@ -358,8 +358,11 @@ the slot). Full design + decisions + staged build: `design/concurrent-chats.md`.
 3. **Roster awareness** — DONE (2026-06-17). Pool computes each thread's sibling roster
    (`label` + `status`, excluding self) and passes it to the handler; `run_turn` injects it under a
    "# Your other threads" heading (knows they exist + status, not contents). Tested.
-4. **Stop** — cancel a thread's running turn (+ exec subprocess cancel hook).
-5. **Resolve** — per-thread M11 distill + remove + free slot (pool hook exists; wire `cli.distill`).
+4. **Stop** — DONE (2026-06-17). `daemon.stop` + socket `:stop <id>`; `run_turn` rolls a cancelled
+   turn out of the convo (no orphaned `tool_use` → next turn valid). Orphaned `exec` subprocess dies
+   at its timeout (BACKLOG). Tested (stopped turn → valid history).
+5. **Resolve** — per-thread M11 distill + remove + free slot (pool hook + `daemon.resolve` exist;
+   wire `cli.distill` + socket `:resolve <id>`).
 6. **Desktop switchboard** — focused chat + panel boxes + swap + ready-light + Stop/Resolve.
 
 Currently on **step 2 (thread-addressed socket protocol)**.

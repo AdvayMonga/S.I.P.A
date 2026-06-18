@@ -100,3 +100,14 @@ the query; this is the first refinement once it's in use.
   store as an `episode`) so a restart resumes warm. M8 keeps the summary in-process only.
 - **Telegram + webhook sources.** Just more `Source`s feeding the same router. Telegram needs a bot
   token from the user; webhooks need an ingress. Deferred to the event-sources milestone.
+
+## From M18 (concurrent chats)
+
+- **Tighter Stop for in-flight `run_shell`** — stopping a thread mid-shell-command cancels the turn
+  immediately (`[stopped]`), but the orphaned subprocess in the `exec` server keeps running until its
+  own timeout cap, then dies. Acceptable for now (Stop is prompt for the user; the subprocess is
+  bounded). A tighter kill needs the `exec` server to handle MCP request-cancellation and terminate
+  its subprocess — cross-process, deferred. Belongs in `design/code-execution.md`.
+- **Fold scheduled tasks + `delegate_background` into the thread pool** — the grand unification: a
+  scheduled fire / delegated task becomes an auto-created thread that runs and goes `ready`. M18
+  keeps them on their current paths (broadcast / detached worker). See `design/concurrent-chats.md`.
