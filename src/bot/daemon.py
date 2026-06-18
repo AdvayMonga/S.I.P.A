@@ -39,6 +39,16 @@ class Daemon:
     async def submit(self, text: str, respond: Respond, ask: Ask | None = None) -> None:
         await self._pool.submit(self._pool.default_thread(), text, respond, ask)
 
+    def create_thread(self, label: str = "") -> str:
+        """Create a new chat thread (raises PoolFull past the cap) — the socket's `:thread new`."""
+        return self._pool.create(label)
+
+    async def submit_to(
+        self, tid: str, text: str, respond: Respond, ask: Ask | None = None
+    ) -> None:
+        """Route a message to a specific thread — the socket's `:thread <id>` path."""
+        await self._pool.submit(tid, text, respond, ask)
+
     def register_sink(self, sink: Sink) -> Callable[[], None]:
         """A source registers an output channel; returns a fn to unregister it on disconnect."""
         self._sinks.add(sink)

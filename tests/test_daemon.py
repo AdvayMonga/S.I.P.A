@@ -29,6 +29,10 @@ async def _echo(text: str, ask: Any = None) -> str:
     return text
 
 
+def _socket_task(sock: str, daemon: Daemon) -> "asyncio.Task[None]":
+    return asyncio.create_task(SocketSource(sock, daemon).run(daemon.submit, daemon.register_sink))
+
+
 def test_socket_round_trip() -> None:
     # AF_UNIX paths are ~104 chars max; pytest's tmp_path is too deep, so use a short /tmp path.
     sock = f"/tmp/sipa_test_{os.getpid()}.sock"
@@ -38,7 +42,7 @@ def test_socket_round_trip() -> None:
             return f"echo:{text}"
 
         daemon = Daemon(_pool(handle))
-        source = asyncio.create_task(SocketSource(sock).run(daemon.submit, daemon.register_sink))
+        source = _socket_task(sock, daemon)
         await asyncio.sleep(0.05)  # let the server bind
 
         reader, writer = await asyncio.open_unix_connection(sock)
@@ -89,7 +93,7 @@ def test_real_handler_wiring_over_socket() -> None:
         delegator = BackgroundDelegator(provider, fhost)  # type: ignore[arg-type]
         handle = _make_handle(provider, fhost, delegator, Approver())  # type: ignore[arg-type]
         daemon = Daemon(ThreadPool(handle))
-        source = asyncio.create_task(SocketSource(sock).run(daemon.submit, daemon.register_sink))
+        source = _socket_task(sock, daemon)
         await asyncio.sleep(0.05)
 
         reader, writer = await asyncio.open_unix_connection(sock)
@@ -116,7 +120,7 @@ def test_socket_ask_round_trip() -> None:
             return f"did:{text}:{answer}"
 
         daemon = Daemon(_pool(handle))
-        source = asyncio.create_task(SocketSource(sock).run(daemon.submit, daemon.register_sink))
+        source = _socket_task(sock, daemon)
         await asyncio.sleep(0.05)
 
         reader, writer = await asyncio.open_unix_connection(sock)
@@ -206,7 +210,7 @@ def test_subscribe_connection_receives_pushes() -> None:
 
     async def scenario() -> None:
         daemon = Daemon(_pool(_echo))
-        source = asyncio.create_task(SocketSource(sock).run(daemon.submit, daemon.register_sink))
+        source = _socket_task(sock, daemon)
         await asyncio.sleep(0.05)
 
         reader, writer = await asyncio.open_unix_connection(sock)
@@ -216,6 +220,65 @@ def test_subscribe_connection_receives_pushes() -> None:
         await daemon.notify("background done")
         line = await asyncio.wait_for(reader.readline(), 1)
         assert line.decode().strip() == "background done"
+        writer.close()
+        source.cancel()
+
+    try:
+        asyncio.run(scenario())
+    finally:
+        Path(sock).unlink(missing_ok=True)
+
+
+def test_thread_new_creates_and_routes() -> None:
+    sock = f"/tmp/sipa_tnew_{os.getpid()}.sock"
+
+    async def scenario() -> None:
+        async def handle(text: str, ask: Any = None) -> str:
+            return f"echo:{text}"
+
+        pool = _pool(handle)
+        daemon = Daemon(pool)
+        source = _socket_task(sock, daemon)
+        await asyncio.sleep(0.05)
+
+        reader, writer = await asyncio.open_unix_connection(sock)
+        writer.write(b":thread new\n")  # create a thread; first reply line is its id
+        await writer.drain()
+        tid = (await asyncio.wait_for(reader.readline(), 1)).decode().strip()
+        assert tid in {t["id"] for t in pool.snapshot()}  # thread exists in the pool
+        writer.write(b"hi\n")  # a message on that thread
+        await writer.drain()
+        reply = await asyncio.wait_for(reader.readline(), 1)
+        assert reply.decode().strip() == "echo:hi"
+        writer.close()
+        source.cancel()
+
+    try:
+        asyncio.run(scenario())
+    finally:
+        Path(sock).unlink(missing_ok=True)
+
+
+def test_thread_bound_routes_to_existing() -> None:
+    sock = f"/tmp/sipa_tbound_{os.getpid()}.sock"
+
+    async def scenario() -> None:
+        async def handle(text: str, ask: Any = None) -> str:
+            return f"echo:{text}"
+
+        pool = _pool(handle)
+        daemon = Daemon(pool)
+        tid = pool.create("preexisting")
+        source = _socket_task(sock, daemon)
+        await asyncio.sleep(0.05)
+
+        reader, writer = await asyncio.open_unix_connection(sock)
+        writer.write(f":thread {tid}\n".encode())  # bind to the existing thread
+        await writer.drain()
+        writer.write(b"yo\n")
+        await writer.drain()
+        reply = await asyncio.wait_for(reader.readline(), 1)
+        assert reply.decode().strip() == "echo:yo"
         writer.close()
         source.cancel()
 

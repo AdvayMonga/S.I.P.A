@@ -195,7 +195,7 @@ async def _main() -> None:
 
         delegator.set_notify(present_background)
         sources = [
-            SocketSource(str(settings.socket_path.resolve())),
+            SocketSource(str(settings.socket_path.resolve()), daemon),
             TimerSource(_make_fire_due(host, daemon.notify), settings.timer_interval),
             StdinSource(),
         ]

@@ -351,7 +351,10 @@ the slot). Full design + decisions + staged build: `design/concurrent-chats.md`.
    `on_change`). `daemon.py`'s queue+router → the pool bridge (push channel kept); `cli` builds the
    pool + a seeded "main" default thread. Behaviour-preserving for one thread. `test_pool.py` covers
    delivery, error isolation, cap, concurrency, stop, resolve. `make check` green (117 tests).
-2. **Thread-addressed socket protocol** — `:thread new` / `:thread <id>`; multi-thread messaging.
+2. **Thread-addressed socket protocol** — DONE (2026-06-17). Socket first line selects mode:
+   `:thread new` (create → returns id), `:thread <id>` (bind), `:subscribe`, or legacy plain message
+   (default thread, `sipa-client` unchanged). Thread ops on the daemon (`create_thread`/`submit_to`);
+   `_converse` helper shared by default + thread-bound serving. Socket tests cover both verbs.
 3. **Roster awareness** — inject sibling `{label, status}` into each turn's context.
 4. **Stop** — cancel a thread's running turn (+ exec subprocess cancel hook).
 5. **Resolve** — per-thread M11 distill + remove + free slot (pool hook exists; wire `cli.distill`).

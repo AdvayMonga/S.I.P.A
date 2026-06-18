@@ -6,7 +6,8 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 
-from .daemon import ASK_PREFIX, TELEMETRY_PREFIX, Registrar, Submit
+from .daemon import ASK_PREFIX, TELEMETRY_PREFIX, Daemon, Registrar, Respond, Submit
+from .pool import PoolFull
 
 
 class ShutdownSignal(Exception):
@@ -48,11 +49,13 @@ class StdinSource:
 
 
 class SocketSource:
-    """A Unix domain socket. A connection that sends `:subscribe` first becomes a push channel
-    (receives proactive messages); any other connection does newline-delimited request/reply."""
+    """A Unix domain socket. The first line of a connection selects its mode:
+    `:subscribe` → push channel; `:thread new` → create a thread (id returned) then chat on it;
+    `:thread <id>` → chat on an existing thread; anything else → chat on the default thread."""
 
-    def __init__(self, path: str) -> None:
+    def __init__(self, path: str, daemon: Daemon) -> None:
         self._path = path
+        self._daemon = daemon  # thread management (create + addressed submit) lives on the daemon
 
     async def run(self, submit: Submit, register: Registrar) -> None:
         sock = Path(self._path)
@@ -64,10 +67,16 @@ class SocketSource:
                 first = await reader.readline()
                 if not first:
                     return
-                if first.decode().strip() == ":subscribe":
+                header = first.decode().strip()
+                if header == ":subscribe":
                     await _subscribe(reader, writer, register)
-                else:
-                    await _serve(first, reader, writer, submit)
+                elif header == ":thread new":
+                    await _serve_new_thread(self._daemon, reader, writer)
+                elif header.startswith(":thread "):
+                    tid = header[len(":thread ") :].strip()
+                    await _serve_thread(self._daemon, tid, reader, writer)
+                else:  # legacy: a plain message on the default thread (sipa-client)
+                    await _converse(reader, writer, submit, first=first)
             finally:
                 writer.close()
 
@@ -102,11 +111,18 @@ async def _send(writer: asyncio.StreamWriter, text: str) -> bool:
         return False
 
 
-async def _serve(
-    first: bytes, reader: asyncio.StreamReader, writer: asyncio.StreamWriter, submit: Submit
+Dispatch = Callable[[str, Respond, Callable[[str], Awaitable[str]]], Awaitable[None]]
+
+
+async def _converse(
+    reader: asyncio.StreamReader,
+    writer: asyncio.StreamWriter,
+    dispatch: Dispatch,
+    first: bytes = b"",
 ) -> None:
-    """Newline-delimited request/reply on one connection (the first line is already read).
-    Mid-turn questions are written with ASK_PREFIX; the client's next line is the answer."""
+    """Newline-delimited request/reply on one connection. `dispatch(text, respond, ask)` processes
+    each message (default-thread `submit` or a thread-bound submit). Mid-turn questions go out with
+    ASK_PREFIX; the client's next line is the answer."""
 
     async def ask(question: str) -> str:
         if not await _send(writer, ASK_PREFIX + question):
@@ -114,19 +130,43 @@ async def _serve(
         answer = await reader.readline()
         return answer.decode().strip()
 
-    line = first
+    line = first or await reader.readline()
     while line:
         text = line.decode().strip()
         if text:
             done = asyncio.Event()
 
             async def respond(reply: str, done: asyncio.Event = done) -> None:
-                await _send(writer, reply)  # never raises into the router if the client dropped
+                await _send(writer, reply)  # never raises into the pool if the client dropped
                 done.set()
 
-            await submit(text, respond, ask)
+            await dispatch(text, respond, ask)
             await done.wait()
         line = await reader.readline()
+
+
+async def _serve_thread(
+    daemon: Daemon, tid: str, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+) -> None:
+    """Chat on a specific thread: every message routes to thread `tid`."""
+
+    async def dispatch(text: str, respond: Respond, ask: Callable[[str], Awaitable[str]]) -> None:
+        await daemon.submit_to(tid, text, respond, ask)
+
+    await _converse(reader, writer, dispatch)
+
+
+async def _serve_new_thread(
+    daemon: Daemon, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+) -> None:
+    """Create a thread, send its id back as the first line, then chat on it."""
+    try:
+        tid = daemon.create_thread()
+    except PoolFull as exc:
+        await _send(writer, f"[error] {exc}")
+        return
+    await _send(writer, tid)
+    await _serve_thread(daemon, tid, reader, writer)
 
 
 class TimerSource:
