@@ -69,7 +69,7 @@ class SocketSource:
                     return
                 header = first.decode().strip()
                 if header == ":subscribe":
-                    await _subscribe(reader, writer, register)
+                    await _subscribe(reader, writer, register, self._daemon)
                 elif header == ":thread new":
                     await _serve_new_thread(self._daemon, reader, writer)
                 elif header.startswith(":thread "):
@@ -92,7 +92,10 @@ class SocketSource:
 
 
 async def _subscribe(
-    reader: asyncio.StreamReader, writer: asyncio.StreamWriter, register: Registrar
+    reader: asyncio.StreamReader,
+    writer: asyncio.StreamWriter,
+    register: Registrar,
+    daemon: Daemon,
 ) -> None:
     """Hold the connection open as a push channel until the client disconnects."""
 
@@ -101,6 +104,7 @@ async def _subscribe(
         await writer.drain()
 
     remove = register(sink)
+    await daemon.broadcast_threads()  # populate the new subscriber's switchboard immediately
     try:
         await reader.read()  # blocks until EOF (client disconnects)
     finally:

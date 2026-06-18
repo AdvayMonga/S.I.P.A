@@ -216,7 +216,8 @@ def test_subscribe_connection_receives_pushes() -> None:
         reader, writer = await asyncio.open_unix_connection(sock)
         writer.write(b":subscribe\n")  # become a push channel
         await writer.drain()
-        await asyncio.sleep(0.05)  # let the subscribe register its sink
+        first = await asyncio.wait_for(reader.readline(), 1)  # threads snapshot sent on subscribe
+        assert first.decode().startswith(TELEMETRY_PREFIX)
         await daemon.notify("background done")
         line = await asyncio.wait_for(reader.readline(), 1)
         assert line.decode().strip() == "background done"

@@ -24,17 +24,22 @@ struct Approvals {
     counter: AtomicU64,
 }
 
-/// Send one message to the daemon. Mid-turn, the daemon may ask a question (ASK_PREFIX line); we
-/// surface it to the UI, wait for the user's answer, write it back, and keep reading until the reply.
+/// Send one message to a specific thread. Mid-turn, the daemon may ask a question (ASK_PREFIX line);
+/// we surface it to the UI, wait for the user's answer, write it back, and read until the reply.
 #[tauri::command]
-async fn ask(app: AppHandle, state: State<'_, Approvals>, message: String) -> Result<String, String> {
+async fn ask(
+    app: AppHandle,
+    state: State<'_, Approvals>,
+    thread_id: String,
+    message: String,
+) -> Result<String, String> {
     let path = socket_path();
     let stream = UnixStream::connect(&path)
         .await
         .map_err(|e| format!("connect {path}: {e}"))?;
     let (read_half, mut write_half) = stream.into_split();
     write_half
-        .write_all(format!("{message}\n").as_bytes())
+        .write_all(format!(":thread {thread_id}\n{message}\n").as_bytes())
         .await
         .map_err(|e| e.to_string())?;
     let mut lines = BufReader::new(read_half).lines();
@@ -53,6 +58,50 @@ async fn ask(app: AppHandle, state: State<'_, Approvals>, message: String) -> Re
             },
         }
     }
+}
+
+/// Create a new thread; the daemon's first reply line is its id.
+#[tauri::command]
+async fn new_thread() -> Result<String, String> {
+    let (read_half, mut write_half) = connect().await?.into_split();
+    write_half
+        .write_all(b":thread new\n")
+        .await
+        .map_err(|e| e.to_string())?;
+    BufReader::new(read_half)
+        .lines()
+        .next_line()
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "daemon closed the connection".into())
+}
+
+/// Fire a one-shot control verb (`stop` / `resolve`) at a thread and await its ack.
+async fn control(verb: &str, id: &str) -> Result<(), String> {
+    let (read_half, mut write_half) = connect().await?.into_split();
+    write_half
+        .write_all(format!(":{verb} {id}\n").as_bytes())
+        .await
+        .map_err(|e| e.to_string())?;
+    let _ = BufReader::new(read_half).lines().next_line().await; // ack ("ok")
+    Ok(())
+}
+
+#[tauri::command]
+async fn stop_thread(id: String) -> Result<(), String> {
+    control("stop", &id).await
+}
+
+#[tauri::command]
+async fn resolve_thread(id: String) -> Result<(), String> {
+    control("resolve", &id).await
+}
+
+async fn connect() -> Result<UnixStream, String> {
+    let path = socket_path();
+    UnixStream::connect(&path)
+        .await
+        .map_err(|e| format!("connect {path}: {e}"))
 }
 
 /// Emit the question to the frontend and await the answer the `approve` command will deliver.
@@ -103,7 +152,13 @@ async fn subscribe_loop(app: AppHandle) {
 pub fn run() {
     tauri::Builder::default()
         .manage(Approvals::default())
-        .invoke_handler(tauri::generate_handler![ask, approve])
+        .invoke_handler(tauri::generate_handler![
+            ask,
+            approve,
+            new_thread,
+            stop_thread,
+            resolve_thread
+        ])
         .setup(|app| {
             tauri::async_runtime::spawn(subscribe_loop(app.handle().clone()));
             Ok(())

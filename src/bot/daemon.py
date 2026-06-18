@@ -76,6 +76,11 @@ class Daemon:
         push channel as chat — the desktop routes on the prefix + topic. See design/dashboard.md."""
         await self.notify(TELEMETRY_PREFIX + json.dumps({"topic": topic, **payload}))
 
+    async def broadcast_threads(self) -> None:
+        """Push the current thread snapshot — called when a client subscribes so its switchboard
+        populates immediately (the pool otherwise only broadcasts on a state change)."""
+        await self.emit_telemetry("threads", {"threads": self._pool.snapshot()})
+
     async def run(self, sources: list[Source]) -> None:
         """Run every source until one raises (e.g. stdin EOF → ShutdownSignal). Turns themselves run
         in the pool, spawned per-submit — no central router task."""
