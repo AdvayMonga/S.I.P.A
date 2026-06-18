@@ -77,7 +77,7 @@ class SemanticIndex:
             rows = con.execute("SELECT id, path, heading, text, vec FROM chunks").fetchall()
             if not rows:
                 return []
-            vector_ranks = self._vector_ranks(query, rows, pool)
+            vector_ranks, vector_sims = self._vector_ranks(query, rows, pool)
             keyword_ranks = self._keyword_ranks(con, query, pool)
             by_id = {row[0]: row for row in rows}
             scored: list[tuple[int, float]] = []
@@ -94,19 +94,25 @@ class SemanticIndex:
                     "path": by_id[cid][1],
                     "heading": by_id[cid][2],
                     "snippet": _snippet(by_id[cid][3]),
-                    "score": round(score, 4),
+                    "score": round(score, 4),  # RRF rank-fusion (ordering)
+                    "sim": round(vector_sims.get(cid, 0.0), 4),  # raw vector cosine (relevance)
                 }
                 for cid, score in scored[:k]
             ]
         finally:
             con.close()
 
-    def _vector_ranks(self, query: str, rows: list[Any], pool: int) -> dict[int, int]:
+    def _vector_ranks(
+        self, query: str, rows: list[Any], pool: int
+    ) -> tuple[dict[int, int], dict[int, float]]:
+        """Top-`pool` by vector cosine: (id→rank for RRF, id→cosine for relevance)."""
         qv = np.asarray(self._embedder.embed([query])[0], dtype=np.float32)
         mat = np.array([np.frombuffer(row[4], dtype=np.float32) for row in rows])
         sims = mat @ qv / (np.linalg.norm(mat, axis=1) * np.linalg.norm(qv) + 1e-9)
         order = np.argsort(-sims)[:pool]
-        return {int(rows[int(i)][0]): rank for rank, i in enumerate(order)}
+        ranks = {int(rows[int(i)][0]): rank for rank, i in enumerate(order)}
+        sim_by_id = {int(rows[int(i)][0]): float(sims[int(i)]) for i in order}
+        return ranks, sim_by_id
 
     def _keyword_ranks(self, con: sqlite3.Connection, query: str, pool: int) -> dict[int, int]:
         terms = [t for t in re.split(r"\s+", query.strip()) if t]

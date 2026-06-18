@@ -1,7 +1,13 @@
 import asyncio
 import json
 
-from bot.context import TOTAL_BUDGET, assemble_context
+from bot.context import (
+    MEM_MIN_SCORE,
+    TOTAL_BUDGET,
+    VAULT_MIN_SCORE,
+    assemble_context,
+    is_trivial,
+)
 
 BASE = "BASE SYSTEM"
 
@@ -19,8 +25,8 @@ class FakeHost:
         return self._responses.get(name, ("", False))
 
 
-def _assemble(host: FakeHost, msg: str = "q") -> str:
-    return asyncio.run(assemble_context(host, msg, BASE))
+def _assemble(host: FakeHost, msg: str = "q", retrieve: bool = True) -> str:
+    return asyncio.run(assemble_context(host, msg, BASE, retrieve=retrieve))
 
 
 def _mem(rows: list[dict]) -> str:
@@ -83,6 +89,79 @@ def test_is_error_result_is_skipped() -> None:
         }
     )
     assert _assemble(host, "hi") == BASE
+
+
+def test_retrieve_false_keeps_profile_skips_retrieval() -> None:
+    host = FakeHost(
+        {
+            "memory_get_profile": ("[preference] terse", False),
+            "memory_recall": (
+                _mem([{"id": 1, "kind": "fact", "content": "x", "score": 0.9}]),
+                False,
+            ),
+            "semantic_search": (
+                _mem([{"path": "n.md", "snippet": "y", "sim": 0.9}]),
+                False,
+            ),
+        }
+    )
+    out = _assemble(host, "hi", retrieve=False)
+    assert "terse" in out  # profile (identity) still injected
+    assert "Possibly relevant memory" not in out  # retrieval skipped entirely
+    assert "Possibly relevant notes" not in out
+
+
+def test_low_score_rows_are_gated_out() -> None:
+    host = FakeHost(
+        {
+            "memory_get_profile": ("", False),
+            "memory_recall": (
+                _mem(
+                    [
+                        {"id": 1, "kind": "fact", "content": "keep me", "score": MEM_MIN_SCORE},
+                        {
+                            "id": 2,
+                            "kind": "fact",
+                            "content": "drop me",
+                            "score": MEM_MIN_SCORE - 0.1,
+                        },
+                    ]
+                ),
+                False,
+            ),
+            "semantic_search": (
+                _mem(
+                    [
+                        {"path": "a.md", "snippet": "keep note", "sim": VAULT_MIN_SCORE},
+                        {"path": "b.md", "snippet": "drop note", "sim": VAULT_MIN_SCORE - 0.1},
+                    ]
+                ),
+                False,
+            ),
+        }
+    )
+    out = _assemble(host)
+    assert "keep me" in out and "drop me" not in out
+    assert "keep note" in out and "drop note" not in out
+
+
+def test_missing_score_is_kept() -> None:
+    # Back-compat: a row without score/sim passes the gate (only known-irrelevant is dropped).
+    host = FakeHost(
+        {
+            "memory_get_profile": ("", False),
+            "memory_recall": (_mem([{"id": 1, "kind": "fact", "content": "no score"}]), False),
+            "semantic_search": (_mem([]), False),
+        }
+    )
+    assert "no score" in _assemble(host)
+
+
+def test_is_trivial() -> None:
+    for m in ("hi", "Hey!", "thanks", "ok", "good morning", "  yo  ", "k"):
+        assert is_trivial(m), m
+    for m in ("what's my flight", "remind me about Alice", "why?"):
+        assert not is_trivial(m), m
 
 
 def test_budget_truncates() -> None:

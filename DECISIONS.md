@@ -320,3 +320,26 @@ turn is the only thing that can have changed the schedule (model scheduled/cance
 fired) — so it stays current with no extra backend wiring. The daemon stays scheduler-agnostic: a
 `scheduled()` callable (host → `list_scheduled_tasks`) is injected into `SocketSource`, mirroring how
 `fire_due` is injected into the timer. Tile is display-only; interactive edits deferred (`BACKLOG`).
+
+## 2026-06-18 — Trim the per-turn context envelope (caching + gated retrieval)
+
+**Problem.** Every chat turn — even "hello" — carried a ~6k-token fixed envelope: the 32-tool
+schemas (~1600 tok, byte-stable) plus an always-on context block (profile + top-5 memory + top-5
+vault, ~1500 tok) with no relevance filter.
+
+**Decisions.**
+- **Cache the tool prefix, not the system.** Tools are byte-stable every turn → an ephemeral
+  `cache_control` breakpoint on the last tool caches the whole tool prefix (~90% off on repeat).
+  The system prompt is *not* cached: the context block is query-dependent, so it changes every
+  turn and would never hit. (`provider.py`)
+- **Profile = identity (always on); retrieval = query-driven (skippable).** Greetings/acks
+  (`is_trivial`) have no real query, so they skip memory+vault retrieval but keep the profile —
+  honouring VISION §5.9 ("just knows you") while dropping the noise. (`context.py`, `loop.py`)
+- **Gate on similarity, and missing score = keep.** Memory gates on its cosine `score`; vault
+  gates on a newly-exposed vector cosine `sim` — its RRF `score` is rank-based (max ~0.033) and
+  useless for absolute relevance, so the raw cosine (previously computed in `_vector_ranks` then
+  discarded) is now surfaced. A row lacking a score is kept: only *known*-irrelevant rows drop.
+- **Thresholds start at 0.55, tunable.** bge-small-en-v1.5 cosine baseline runs high (unrelated
+  text ~0.5), so 0.55 only drops clear misses. Not empirically calibrated yet — `MEM_MIN_SCORE` /
+  `VAULT_MIN_SCORE` in `context.py` are the knobs. Known edge: a pure-keyword hit outside the
+  vector pool has `sim`=0 and is gated out (acceptable; relevance trusts vector similarity).

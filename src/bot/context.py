@@ -3,12 +3,30 @@ the system prompt so the model just *knows* the user — no tool call needed. Pu
 calls assemble_context once per turn. See design/context-assembly.md."""
 
 import json
+import re
 from typing import Any, Protocol
 
 TOTAL_BUDGET = 6000  # chars of injected context (~1500 tokens); never dump a whole store
 PROFILE_SLICE = 2000  # profile gets its slot first (matches the memory store's PROFILE_CAP)
 K_MEMORY = 5
 K_VAULT = 5
+# Relevance floors (bge-small cosine; baseline runs high, so ~0.55 only drops clear misses).
+# A row missing its score is kept — gate only what we *know* is irrelevant. Tune as needed.
+MEM_MIN_SCORE = 0.55
+VAULT_MIN_SCORE = 0.55
+
+# A greeting/ack/very-short turn has no real query → retrieval is noise (profile still loads).
+_GREETING = re.compile(
+    r"^(hi|hey|hello|yo|sup|thx|thanks|thank you|ok|okay|k|cool|nice|great|"
+    r"got it|gm|gn|good morning|good night|good evening|bye|lol|np)\b[!. ]*$",
+    re.IGNORECASE,
+)
+
+
+def is_trivial(message: str) -> bool:
+    """True for greetings/acks/very-short turns — nothing meaningful to retrieve against."""
+    m = message.strip()
+    return len(m) <= 3 or bool(_GREETING.match(m))
 
 _PREAMBLE = (
     "# Context (auto-retrieved; use if relevant, ignore if not; cite the source you use)"
@@ -19,19 +37,24 @@ class _Host(Protocol):
     async def call_tool(self, name: str, arguments: dict[str, Any]) -> tuple[str, bool]: ...
 
 
-async def assemble_context(host: _Host, user_message: str, base_system: str) -> str:
+async def assemble_context(
+    host: _Host, user_message: str, base_system: str, *, retrieve: bool = True
+) -> str:
     """Build the per-turn system prompt: base + profile + top-k memory + top-k vault notes.
 
     One budget, allocated profile-first then the remainder split between memory and vault. Each
     source is best-effort: a failing or empty one is skipped. All empty → base unchanged.
+    `retrieve=False` (trivial turns) keeps the profile but skips the query-driven retrieval.
     """
     profile = await _profile(host)
-    remainder = max(0, TOTAL_BUDGET - len(profile))
-    each = remainder // 2
-    memory = await _memory(host, user_message, each)
-    vault = await _vault(host, user_message, each)
+    sections = [profile]
+    if retrieve:
+        remainder = max(0, TOTAL_BUDGET - len(profile))
+        each = remainder // 2
+        sections.append(await _memory(host, user_message, each))
+        sections.append(await _vault(host, user_message, each))
 
-    sections = [s for s in (profile, memory, vault) if s]
+    sections = [s for s in sections if s]
     if not sections:
         return base_system
     block = "\n\n".join([_PREAMBLE, *sections])
@@ -47,7 +70,7 @@ async def _profile(host: _Host) -> str:
 
 async def _memory(host: _Host, query: str, budget: int) -> str:
     raw = await _safe(host, "memory_recall", {"query": query, "k": K_MEMORY})
-    rows = _loads(raw)
+    rows = [r for r in _loads(raw) if r.get("score", 1.0) >= MEM_MIN_SCORE]
     lines = [f"- (memory#{r['id']} · {r['kind']}) {r['content']}" for r in rows]
     body = _fit(lines, budget)
     return "## Possibly relevant memory\n" + body if body else ""
@@ -55,7 +78,7 @@ async def _memory(host: _Host, query: str, budget: int) -> str:
 
 async def _vault(host: _Host, query: str, budget: int) -> str:
     raw = await _safe(host, "semantic_search", {"query": query, "k": K_VAULT})
-    rows = _loads(raw)
+    rows = [r for r in _loads(raw) if r.get("sim", 1.0) >= VAULT_MIN_SCORE]
     lines = []
     for r in rows:
         where = r["path"] + (f" › {r['heading']}" if r.get("heading") else "")

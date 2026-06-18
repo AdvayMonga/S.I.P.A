@@ -7,7 +7,7 @@ from typing import Any, cast
 
 from anthropic.types import TextBlock, ToolUseBlock
 
-from .context import assemble_context
+from .context import assemble_context, is_trivial
 from .conversation import Conversation, maybe_compact
 from .daemon import Ask
 from .host import MCPHost
@@ -80,7 +80,8 @@ async def run_turn(
     # Enrich the retrieval query with the rolling summary so follow-ups retrieve against state.
     query = f"{convo.summary[-500:]} {user_message}".strip() if convo.summary else user_message
     # Assemble context once on the query; reuse it across this turn's tool-use iterations.
-    system = await assemble_context(host, query, SYSTEM)
+    # Greetings/acks have no real query → keep the profile, skip query-driven retrieval.
+    system = await assemble_context(host, query, SYSTEM, retrieve=not is_trivial(user_message))
     if convo.summary:
         system = f"{system}\n\n# Conversation so far\n{convo.summary}"
     if roster:
