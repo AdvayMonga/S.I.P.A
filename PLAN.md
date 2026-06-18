@@ -361,11 +361,13 @@ the slot). Full design + decisions + staged build: `design/concurrent-chats.md`.
 4. **Stop** — DONE (2026-06-17). `daemon.stop` + socket `:stop <id>`; `run_turn` rolls a cancelled
    turn out of the convo (no orphaned `tool_use` → next turn valid). Orphaned `exec` subprocess dies
    at its timeout (BACKLOG). Tested (stopped turn → valid history).
-5. **Resolve** — per-thread M11 distill + remove + free slot (pool hook + `daemon.resolve` exist;
-   wire `cli.distill` + socket `:resolve <id>`).
+5. **Resolve** — DONE (2026-06-17). Socket `:resolve <id>` → `daemon.resolve` → pool drops the
+   thread + frees the slot; `cli.distill` remembers it as its own memory episode (recallable;
+   continuity via memory, distinct from M11's superseded `session-summary`). Tested over the socket.
 6. **Desktop switchboard** — focused chat + panel boxes + swap + ready-light + Stop/Resolve.
 
-Currently on **step 2 (thread-addressed socket protocol)**.
+**Backend (steps 1–5) DONE.** Currently on **step 6 (desktop switchboard UI)** — the frontend
+piece, where the UX choices live. `make check` green, 122 tests.
 
 ## Later (not started)
 

@@ -175,8 +175,17 @@ async def _main() -> None:
             # On every thread state change, push the pool snapshot to the switchboard panel.
             await daemon.emit_telemetry("threads", {"threads": threads})
 
+        async def distill_thread(convo: Conversation) -> None:
+            # Resolve → remember the thread as its own episode (recallable; continuity via memory).
+            if not convo.messages:
+                return
+            summary = await finalize_summary(convo, provider)
+            if summary:
+                await host.call_tool("memory_remember", {"content": summary, "kind": "episode"})
+
         pool.after_turn = emit_cost
         pool.on_change = emit_threads
+        pool.distill = distill_thread
 
         convo = pool.thread(pool.create("main")).convo  # the default thread, seeded warm below
         await _resume_session(convo, host)

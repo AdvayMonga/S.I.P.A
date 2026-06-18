@@ -259,6 +259,31 @@ def test_thread_new_creates_and_routes() -> None:
         Path(sock).unlink(missing_ok=True)
 
 
+def test_resolve_verb_closes_the_thread() -> None:
+    sock = f"/tmp/sipa_resolve_{os.getpid()}.sock"
+
+    async def scenario() -> None:
+        pool = _pool(_echo)
+        daemon = Daemon(pool)
+        tid = pool.create("doomed")
+        source = _socket_task(sock, daemon)
+        await asyncio.sleep(0.05)
+
+        reader, writer = await asyncio.open_unix_connection(sock)
+        writer.write(f":resolve {tid}\n".encode())
+        await writer.drain()
+        ack = await asyncio.wait_for(reader.readline(), 1)
+        assert ack.decode().strip() == "ok"
+        assert tid not in {t["id"] for t in pool.snapshot()}  # gone, slot freed
+        writer.close()
+        source.cancel()
+
+    try:
+        asyncio.run(scenario())
+    finally:
+        Path(sock).unlink(missing_ok=True)
+
+
 def test_thread_bound_routes_to_existing() -> None:
     sock = f"/tmp/sipa_tbound_{os.getpid()}.sock"
 
