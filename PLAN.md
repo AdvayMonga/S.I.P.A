@@ -355,7 +355,9 @@ the slot). Full design + decisions + staged build: `design/concurrent-chats.md`.
    `:thread new` (create → returns id), `:thread <id>` (bind), `:subscribe`, or legacy plain message
    (default thread, `sipa-client` unchanged). Thread ops on the daemon (`create_thread`/`submit_to`);
    `_converse` helper shared by default + thread-bound serving. Socket tests cover both verbs.
-3. **Roster awareness** — inject sibling `{label, status}` into each turn's context.
+3. **Roster awareness** — DONE (2026-06-17). Pool computes each thread's sibling roster
+   (`label` + `status`, excluding self) and passes it to the handler; `run_turn` injects it under a
+   "# Your other threads" heading (knows they exist + status, not contents). Tested.
 4. **Stop** — cancel a thread's running turn (+ exec subprocess cancel hook).
 5. **Resolve** — per-thread M11 distill + remove + free slot (pool hook exists; wire `cli.distill`).
 6. **Desktop switchboard** — focused chat + panel boxes + swap + ready-light + Stop/Resolve.

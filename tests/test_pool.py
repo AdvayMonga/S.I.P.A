@@ -26,7 +26,7 @@ async def _collect(pool: ThreadPool, tid: str, text: str) -> str:
 
 def test_submit_runs_a_turn_and_delivers_the_reply() -> None:
     async def scenario() -> None:
-        async def handle(convo: Conversation, text: str, ask: Any = None) -> str:
+        async def handle(convo: Conversation, text: str, ask: Any = None, roster: str = "") -> str:
             return text.upper()
 
         pool = _pool(handle)
@@ -38,7 +38,7 @@ def test_submit_runs_a_turn_and_delivers_the_reply() -> None:
 
 def test_submit_isolates_handler_errors() -> None:
     async def scenario() -> None:
-        async def handle(convo: Conversation, text: str, ask: Any = None) -> str:
+        async def handle(convo: Conversation, text: str, ask: Any = None, roster: str = "") -> str:
             raise ValueError("boom")
 
         pool = _pool(handle)
@@ -51,7 +51,7 @@ def test_submit_isolates_handler_errors() -> None:
 
 def test_after_turn_hook_fires_after_each_turn() -> None:
     async def scenario() -> None:
-        async def handle(convo: Conversation, text: str, ask: Any = None) -> str:
+        async def handle(convo: Conversation, text: str, ask: Any = None, roster: str = "") -> str:
             return "ok"
 
         fired: list[int] = []
@@ -69,7 +69,7 @@ def test_after_turn_hook_fires_after_each_turn() -> None:
 
 def test_on_change_broadcasts_running_then_idle() -> None:
     async def scenario() -> None:
-        async def handle(convo: Conversation, text: str, ask: Any = None) -> str:
+        async def handle(convo: Conversation, text: str, ask: Any = None, roster: str = "") -> str:
             return "ok"
 
         statuses: list[str] = []
@@ -86,7 +86,7 @@ def test_on_change_broadcasts_running_then_idle() -> None:
 
 
 def test_create_enforces_the_cap() -> None:
-    async def handle(convo: Conversation, text: str, ask: Any = None) -> str:
+    async def handle(convo: Conversation, text: str, ask: Any = None, roster: str = "") -> str:
         return "ok"
 
     pool = _pool(handle, max_threads=2)
@@ -100,7 +100,7 @@ def test_threads_run_concurrently_across_but_serial_within() -> None:
     async def scenario() -> None:
         order: list[str] = []
 
-        async def handle(convo: Conversation, text: str, ask: Any = None) -> str:
+        async def handle(convo: Conversation, text: str, ask: Any = None, roster: str = "") -> str:
             order.append(f"start:{text}")
             await asyncio.sleep(0.05)
             order.append(f"end:{text}")
@@ -126,7 +126,7 @@ def test_stop_cancels_a_running_turn() -> None:
     async def scenario() -> None:
         started = asyncio.Event()
 
-        async def handle(convo: Conversation, text: str, ask: Any = None) -> str:
+        async def handle(convo: Conversation, text: str, ask: Any = None, roster: str = "") -> str:
             started.set()
             await asyncio.sleep(10)  # long turn we'll cancel
             return "done"
@@ -153,7 +153,7 @@ def test_stop_cancels_a_running_turn() -> None:
 
 def test_resolve_removes_the_thread_and_frees_the_slot() -> None:
     async def scenario() -> None:
-        async def handle(convo: Conversation, text: str, ask: Any = None) -> str:
+        async def handle(convo: Conversation, text: str, ask: Any = None, roster: str = "") -> str:
             return "ok"
 
         distilled: list[Conversation] = []
@@ -167,5 +167,23 @@ def test_resolve_removes_the_thread_and_frees_the_slot() -> None:
         await pool.resolve(tid)
         assert len(distilled) == 1  # resolve distilled the thread to memory
         pool.create()  # slot freed → can create again under the cap
+
+    asyncio.run(scenario())
+
+
+def test_roster_lists_sibling_threads_not_self() -> None:
+    async def scenario() -> None:
+        seen: list[str] = []
+
+        async def handle(convo: Conversation, text: str, ask: Any = None, roster: str = "") -> str:
+            seen.append(roster)
+            return "ok"
+
+        pool = _pool(handle)
+        a = pool.create("alpha")
+        pool.create("beta")
+        await _collect(pool, a, "hi")  # running thread a → roster names beta, not alpha
+        assert "beta" in seen[-1]
+        assert "alpha" not in seen[-1]
 
     asyncio.run(scenario())

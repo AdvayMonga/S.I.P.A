@@ -72,6 +72,7 @@ async def run_turn(
     spawn_background: Callable[[str], Awaitable[str]] | None = None,
     ask: Ask | None = None,
     approver: "Approver | None" = None,
+    roster: str = "",
 ) -> str:
     """Run one user turn to completion, mutating `convo` in place. `allow_delegate` offers the
     `delegate`/`delegate_background` tools — only top-level turns set it, so sub-agents can't
@@ -84,6 +85,11 @@ async def run_turn(
     system = await assemble_context(host, query, SYSTEM)
     if convo.summary:
         system = f"{system}\n\n# Conversation so far\n{convo.summary}"
+    if roster:
+        system = (
+            f"{system}\n\n# Your other threads\nYou have other chats/tasks open. You know they "
+            f"exist and their status, but not their contents:\n{roster}"
+        )
 
     tools = host.tools_for_model()
     if allow_delegate:

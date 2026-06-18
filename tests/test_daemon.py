@@ -19,7 +19,7 @@ from bot.subagent import BackgroundDelegator
 def _pool(handle: Any) -> ThreadPool:
     """Wrap a simple (text, ask) -> str handle into a ThreadPool for the daemon/socket tests."""
 
-    async def h(convo: Conversation, text: str, ask: Any = None) -> str:
+    async def h(convo: Conversation, text: str, ask: Any = None, roster: str = "") -> str:
         return await handle(text, ask)
 
     return ThreadPool(h)

@@ -75,7 +75,9 @@ def _make_handle(
 ):
     """The per-thread turn-processor the pool calls — runs a turn on that thread's conversation."""
 
-    async def handle(convo: Conversation, text: str, ask: Ask | None = None) -> str:
+    async def handle(
+        convo: Conversation, text: str, ask: Ask | None = None, roster: str = ""
+    ) -> str:
         return await run_turn(
             convo,
             text,
@@ -85,6 +87,7 @@ def _make_handle(
             spawn_background=delegator.start,
             ask=ask,
             approver=approver,
+            roster=roster,
         )
 
     return handle

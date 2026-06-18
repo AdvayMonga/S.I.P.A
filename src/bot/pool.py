@@ -14,8 +14,8 @@ if TYPE_CHECKING:
 
 MAX_THREADS = 5  # flat-pool cap — up to 5 chats/tasks at once
 
-# Runs one turn on a thread's conversation -> the reply text.
-ThreadHandler = Callable[[Conversation, str, "Ask | None"], Awaitable[str]]
+# Runs one turn on a thread's conversation (given the sibling roster) -> the reply text.
+ThreadHandler = Callable[[Conversation, str, "Ask | None", str], Awaitable[str]]
 OnChange = Callable[[list[dict[str, Any]]], Awaitable[None]]  # broadcast the thread snapshot
 Distill = Callable[[Conversation], Awaitable[None]]  # resolve -> persist to memory
 
@@ -67,6 +67,15 @@ class ThreadPool:
     def snapshot(self) -> list[dict[str, Any]]:
         return [{"id": t.id, "label": t.label, "status": t.status} for t in self._threads.values()]
 
+    def _roster(self, tid: str) -> str:
+        """The sibling threads' label + status — injected so a thread knows what else is running
+        (not their contents). Roster awareness, per design/concurrent-chats.md."""
+        return "\n".join(
+            f'- "{t.label or "(new)"}" ({t.status})'
+            for t in self._threads.values()
+            if t.id != tid
+        )
+
     async def _changed(self) -> None:
         if self.on_change is not None:
             await self.on_change(self.snapshot())
@@ -85,9 +94,10 @@ class ThreadPool:
                 thread.label = text[:40]
             thread.status = "running"
             await self._changed()
+            roster = self._roster(tid)
 
             async def _run() -> str:
-                return await self._handle(thread.convo, text, ask)
+                return await self._handle(thread.convo, text, ask, roster)
 
             task = asyncio.create_task(_run())
             thread.current = task
