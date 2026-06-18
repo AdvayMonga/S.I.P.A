@@ -390,11 +390,13 @@ is user-driven only. Full design + decisions: `design/concurrent-chats.md` § Fl
 2. **Push approval** — DONE (2026-06-18, with step 1). `approval` events tagged by thread + daemon
    pending-answer registry (`_push_ask`/`answer`) + `:answer <id> <text>` verb + Rust
    `answer_approval`; approval card routed per thread in `threads.tsx`. Rust approval-loop removed.
-3. **Remove model `delegate_background`** (keep `delegate`).
+3. **Remove model `delegate_background`** — DONE (2026-06-18). `BackgroundDelegator` +
+   `DELEGATE_BACKGROUND_TOOL` deleted; `run_turn`/`_make_handle` lose `spawn_background`; `cli` loses
+   the delegator + `present_background` + `agents` telemetry. `delegate` fan-out untouched.
 4. **Hand-off** — `background_thread` command + `pool.background`; desktop "→ background" button.
 5. **Merge** — `merge_thread` command + `pool.merge`; desktop "Merge" button.
 
-Currently on **step 3 (remove model `delegate_background`)**.
+Currently on **step 4 (hand-off)**.
 
 ## Later (not started)
 

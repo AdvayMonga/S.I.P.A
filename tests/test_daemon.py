@@ -13,7 +13,6 @@ from bot.daemon import ASK_PREFIX, TELEMETRY_PREFIX, Daemon
 from bot.loop import Approver
 from bot.pool import ThreadPool
 from bot.sources import SocketSource, TimerSource
-from bot.subagent import BackgroundDelegator
 
 
 def _pool(handle: Any) -> ThreadPool:
@@ -103,8 +102,7 @@ def test_real_handler_wiring_over_socket() -> None:
 
     async def scenario() -> None:
         provider, fhost = _FakeProvider(), _FakeHost()
-        delegator = BackgroundDelegator(provider, fhost)  # type: ignore[arg-type]
-        handle = _make_handle(provider, fhost, delegator, Approver())  # type: ignore[arg-type]
+        handle = _make_handle(provider, fhost, Approver())  # type: ignore[arg-type]
         daemon = Daemon(ThreadPool(handle))
         source = _socket_task(sock, daemon)
         await asyncio.sleep(0.05)

@@ -3,7 +3,6 @@
 import asyncio
 import json
 import logging
-from collections.abc import Awaitable, Callable
 from typing import Any, cast
 
 from anthropic.types import TextBlock, ToolUseBlock
@@ -13,7 +12,7 @@ from .conversation import Conversation, maybe_compact
 from .daemon import Ask
 from .host import MCPHost
 from .provider import ModelProvider
-from .subagent import DELEGATE_BACKGROUND_TOOL, DELEGATE_TOOL, run_subagents
+from .subagent import DELEGATE_TOOL, run_subagents
 
 _log = logging.getLogger("sipa.loop")
 
@@ -70,15 +69,13 @@ async def run_turn(
     host: MCPHost,
     *,
     allow_delegate: bool = False,
-    spawn_background: Callable[[str], Awaitable[str]] | None = None,
     ask: Ask | None = None,
     approver: "Approver | None" = None,
     roster: str = "",
 ) -> str:
     """Run one user turn to completion, mutating `convo` in place. `allow_delegate` offers the
-    `delegate`/`delegate_background` tools — only top-level turns set it, so sub-agents can't
-    recurse. `spawn_background` starts a detached background sub-agent. `ask` lets the turn request
-    user approval mid-flight (None = unattended → approval-gated tools are denied)."""
+    `delegate` fan-out tool — only top-level turns set it, so sub-agents can't recurse. `ask` asks
+    the user for approval mid-flight (None = unattended → approval-gated tools are denied)."""
     await maybe_compact(convo, provider)  # bound the window before we build the turn
     # Enrich the retrieval query with the rolling summary so follow-ups retrieve against state.
     query = f"{convo.summary[-500:]} {user_message}".strip() if convo.summary else user_message
@@ -94,13 +91,11 @@ async def run_turn(
 
     tools = host.tools_for_model()
     if allow_delegate:
-        tools = [*tools, DELEGATE_TOOL, DELEGATE_BACKGROUND_TOOL]
+        tools = [*tools, DELEGATE_TOOL]
     start_len = len(convo.messages)  # roll back to here if the turn is stopped (keeps alternation)
     convo.messages.append({"role": "user", "content": user_message})
     try:
-        return await _run_loop(
-            convo, system, tools, provider, host, spawn_background, ask, approver
-        )
+        return await _run_loop(convo, system, tools, provider, host, ask, approver)
     except asyncio.CancelledError:
         del convo.messages[start_len:]  # discard the stopped turn — no orphaned tool_use
         raise
@@ -112,7 +107,6 @@ async def _run_loop(
     tools: list[Any],
     provider: ModelProvider,
     host: MCPHost,
-    spawn_background: Callable[[str], Awaitable[str]] | None,
     ask: Ask | None,
     approver: "Approver | None",
 ) -> str:
@@ -142,11 +136,6 @@ async def _run_loop(
             if block.name == "delegate":
                 results = await run_subagents(args.get("tasks", []), provider, host)
                 text, is_error = json.dumps(results), False
-            elif block.name == "delegate_background":
-                if spawn_background is None:
-                    text, is_error = "background delegation unavailable", True
-                else:
-                    text, is_error = await spawn_background(args.get("task", "")), False
             elif block.name in APPROVAL_REQUIRED and not (
                 approver is not None and await approver.approve(block.name, args, ask)
             ):
