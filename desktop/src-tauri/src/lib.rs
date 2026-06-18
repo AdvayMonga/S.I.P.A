@@ -31,6 +31,23 @@ async fn send(thread_id: String, message: String) -> Result<(), String> {
     Ok(())
 }
 
+/// Fetch the current thread list as a JSON array — reliable initial state on mount (the on-subscribe
+/// push can race ahead of the frontend's listeners; this request/response can't).
+#[tauri::command]
+async fn list_threads() -> Result<String, String> {
+    let (read_half, mut write_half) = connect().await?.into_split();
+    write_half
+        .write_all(b":threads\n")
+        .await
+        .map_err(|e| e.to_string())?;
+    BufReader::new(read_half)
+        .lines()
+        .next_line()
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "daemon closed the connection".into())
+}
+
 /// Create a new thread; the daemon's first reply line is its id.
 #[tauri::command]
 async fn new_thread() -> Result<String, String> {
@@ -127,6 +144,7 @@ pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             send,
+            list_threads,
             new_thread,
             background_thread,
             stop_thread,

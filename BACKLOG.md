@@ -111,3 +111,10 @@ the query; this is the first refinement once it's in use.
 - **Fold scheduled tasks + `delegate_background` into the thread pool** — the grand unification: a
   scheduled fire / delegated task becomes an auto-created thread that runs and goes `ready`. M18
   keeps them on their current paths (broadcast / detached worker). See `design/concurrent-chats.md`.
+
+## From M19.x (desktop live state)
+
+- **Unified `:snapshot` command** — today the desktop fetches initial state per slow-changing module
+  (`list_threads`). If more such modules land (scheduler tile, etc.), replace the N bespoke fetches
+  with one `:snapshot` verb returning all live module state at once, fetched once on mount. See
+  `DECISIONS.md` 2026-06-18 (fetch-snapshot-on-mount + push-deltas).

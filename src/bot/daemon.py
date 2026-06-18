@@ -117,6 +117,10 @@ class Daemon:
         populates immediately (the pool otherwise only broadcasts on a state change)."""
         await self.emit_telemetry("threads", {"threads": self._pool.snapshot()})
 
+    def thread_snapshot(self) -> list[dict[str, Any]]:
+        """The current thread list — the socket's `:threads` query (reliable initial state)."""
+        return self._pool.snapshot()
+
     async def run(self, sources: list[Source]) -> None:
         """Run every source until one raises (e.g. stdin EOF → ShutdownSignal). Turns themselves run
         in the pool, spawned per-submit — no central router task."""

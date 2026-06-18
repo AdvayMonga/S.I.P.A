@@ -2,15 +2,14 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { createContext, type ReactNode, useContext, useEffect, useRef, useState } from "react";
 
-import { useTelemetry } from "./telemetry";
-
 export type ThreadMeta = { id: string; label: string; status: "idle" | "running" };
 export type Msg = { role: "user" | "sipa"; text: string };
 type Approval = { id: string; question: string };
 
-// The switchboard's client state: the pool's thread list (from telemetry) + per-thread transcripts,
-// which thread is focused, and which have unread results. Replies and approvals arrive as pushed
-// events tagged by thread, so they route to the right thread even after you've swapped away.
+// The switchboard's client state: the pool's thread list + per-thread transcripts, which thread is
+// focused, and which have unread results. The list is fetched on mount (reliable initial state) and
+// then kept current by pushed deltas; replies and approvals arrive as pushed events tagged by thread,
+// so they route to the right thread even after you've swapped away.
 type ThreadsCtx = {
   threads: ThreadMeta[];
   focused: string | null;
@@ -31,8 +30,7 @@ type ThreadsCtx = {
 const Ctx = createContext<ThreadsCtx>(null as unknown as ThreadsCtx);
 
 export function ThreadsProvider({ children }: { children: ReactNode }) {
-  const snap = useTelemetry<{ threads: ThreadMeta[] }>("threads");
-  const threads = snap?.threads ?? [];
+  const [threads, setThreads] = useState<ThreadMeta[]>([]);
   const [focused, setFocused] = useState<string | null>(null);
   const [transcripts, setTranscripts] = useState<Record<string, Msg[]>>({});
   const [pendingSet, setPendingSet] = useState<Set<string>>(new Set());
@@ -43,17 +41,35 @@ export function ThreadsProvider({ children }: { children: ReactNode }) {
   focusedRef.current = focused;
   const threadsRef = useRef<ThreadMeta[]>([]);
 
+  // Fetch the initial thread list, retrying until the daemon is reachable (it may still be starting).
   useEffect(() => {
-    const list = snap?.threads ?? [];
-    threadsRef.current = list;
+    let cancelled = false;
+    (async () => {
+      while (!cancelled) {
+        try {
+          const list = JSON.parse(await invoke<string>("list_threads")) as ThreadMeta[];
+          if (!cancelled) setThreads(list);
+          return;
+        } catch {
+          await new Promise((r) => setTimeout(r, 1000));
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    threadsRef.current = threads;
     setTranscripts((t) => {
       const next = { ...t };
-      for (const th of list) if (!(th.id in next)) next[th.id] = [];
+      for (const th of threads) if (!(th.id in next)) next[th.id] = [];
       return next;
     });
     // Keep focus on a thread that still exists; if the focused one was resolved, move to another.
-    setFocused((f) => (f && list.some((th) => th.id === f) ? f : (list[0]?.id ?? null)));
-  }, [snap]);
+    setFocused((f) => (f && threads.some((th) => th.id === f) ? f : (threads[0]?.id ?? null)));
+  }, [threads]);
 
   function append(id: string, msg: Msg) {
     setTranscripts((t) => ({ ...t, [id]: [...(t[id] ?? []), msg] }));
@@ -74,17 +90,23 @@ export function ThreadsProvider({ children }: { children: ReactNode }) {
     if (focusedRef.current !== id) setUnread((u) => new Set(u).add(id));
   }
 
-  // Pushed events tagged by thread: replies and mid-turn approvals (each is discrete, not state).
+  // Pushed events: the thread-list delta (state) + per-thread replies and approvals (discrete).
   useEffect(() => {
-    const un = listen<{ topic: string; thread: string; text?: string; id?: string; question?: string }>(
-      "sipa-telemetry",
-      (e) => {
-        const ev = e.payload;
-        if (ev.topic === "reply") deliver(ev.thread, { role: "sipa", text: ev.text ?? "" });
-        else if (ev.topic === "approval")
-          setApprovals((a) => ({ ...a, [ev.thread]: { id: ev.id!, question: ev.question! } }));
-      },
-    );
+    type Ev = {
+      topic: string;
+      threads?: ThreadMeta[];
+      thread?: string;
+      text?: string;
+      id?: string;
+      question?: string;
+    };
+    const un = listen<Ev>("sipa-telemetry", (e) => {
+      const ev = e.payload;
+      if (ev.topic === "threads") setThreads(ev.threads ?? []);
+      else if (ev.topic === "reply") deliver(ev.thread!, { role: "sipa", text: ev.text ?? "" });
+      else if (ev.topic === "approval")
+        setApprovals((a) => ({ ...a, [ev.thread!]: { id: ev.id!, question: ev.question! } }));
+    });
     return () => {
       un.then((off) => off());
     };

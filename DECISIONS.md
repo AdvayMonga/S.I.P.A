@@ -283,3 +283,29 @@ not *clients* — it's still one desktop app on one socket routing by type. The 
 design is topic-tagged events on one transport with optional subscription filters, and that is a
 strict superset of the typed-envelope approach — we grow into it, never rewrite toward it. Getting
 the envelope typed now (vs. an untyped blob) is what keeps that path open.
+
+## 2026-06-18 — Desktop live state: fetch a snapshot on mount, then apply push deltas
+
+**Decision.** A desktop module that mirrors slow-changing server state (the **threads** switchboard
+today) **fetches a full snapshot on mount** via a request/response command (`list_threads`, retried
+until the daemon is reachable), then keeps it current with **pushed deltas** (`sipa-telemetry`
+events). It does *not* rely on the daemon's on-subscribe broadcast to seed initial state.
+
+**Why.** The on-subscribe broadcast (daemon pushes the thread list when a client `:subscribe`s) races
+the frontend: Tauri's `app.emit` can fire before React's async `listen()` is active, so the very
+first snapshot is silently dropped — the panel starts empty and only fills on the next state change
+(e.g. "+ new thread"). A request/response fetch has no such dependency on listener timing, and the
+retry also covers the cold-start case (daemon not up yet). This is the standard live-view pattern
+(GET current state + subscribe to changes) — one state store seeded by the fetch and updated by
+deltas, not two sources of truth. The rejected alternative — keep a single push source but only start
+the stream after listeners attach — is more fragile in React+Tauri (guaranteeing "listeners active"
+before signaling ready is itself racy).
+
+**Scope.** Only **threads** needs this: fast-changing state (cost, replies, approvals) self-heals on
+the next turn/interaction, so a missed initial push there is invisible. The on-subscribe broadcast is
+kept (it's still correct for reconnects once listeners are mounted) — the fetch just makes initial
+state reliable.
+
+**Deferred (`BACKLOG.md`).** If more slow-changing modules appear (e.g. the scheduler tile), unify
+the per-topic fetches into one `:snapshot` command returning all live module state at once, rather
+than N bespoke fetches. The `list_threads` fetch is the seed of that pattern.

@@ -3,6 +3,7 @@ registers an output channel (sink) so the daemon can push proactive messages bac
 a Unix socket (clients; a `:subscribe` connection receives pushes), and a wall-clock timer."""
 
 import asyncio
+import json
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 
@@ -75,6 +76,8 @@ class SocketSource:
                 elif header.startswith(":thread "):
                     tid = header[len(":thread ") :].strip()
                     await _serve_thread(self._daemon, tid, reader, writer)
+                elif header == ":threads":
+                    await _send(writer, json.dumps(self._daemon.thread_snapshot()))
                 elif header.startswith(":background "):
                     bid = await self._daemon.background(header[len(":background ") :].strip())
                     await _send(writer, bid)
