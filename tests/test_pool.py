@@ -262,6 +262,32 @@ def test_background_hands_off_running_turn_without_restart() -> None:
     asyncio.run(scenario())
 
 
+def test_merge_folds_findings_into_target_and_drops_source() -> None:
+    async def scenario() -> None:
+        async def handle(convo: Conversation, text: str, ask: Any = None, roster: str = "") -> str:
+            return "ok"
+
+        pushed: list[tuple[str, str]] = []
+
+        async def on_reply(tid: str, text: str) -> None:
+            pushed.append((tid, text))
+
+        async def summarize(convo: Conversation) -> str:
+            return "FINDINGS"
+
+        pool = _pool(handle)
+        pool.on_reply = on_reply
+        pool.summarize = summarize
+        target = pool.create("main")
+        source = pool.create("research")
+        await pool.merge(source, target)
+        assert source not in {t["id"] for t in pool.snapshot()}  # source dropped, slot freed
+        assert "FINDINGS" in pool.thread(target).convo.summary  # folded into target's context
+        assert pushed and pushed[-1][0] == target and "FINDINGS" in pushed[-1][1]  # surfaced
+
+    asyncio.run(scenario())
+
+
 def test_roster_lists_sibling_threads_not_self() -> None:
     async def scenario() -> None:
         seen: list[str] = []

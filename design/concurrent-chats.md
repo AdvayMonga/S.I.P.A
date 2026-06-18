@@ -182,15 +182,27 @@ Model-initiated `delegate_background` is **removed** — SIPA never backgrounds 
 `delegate` (in-turn, synthesizes, one slot) stays. Backgrounding is a UI action: **→ background**
 (hand-off) and **swap** (already built) are how parallelism happens, always your call.
 
-### Build stages (M19)
+### Build stages (M19) — ALL DONE (2026-06-18)
 
-1. **Push delivery** — Turn/driver pool rework; `reply` events tagged by thread; socket `send`
-   fire-and-forget; desktop routes replies by thread. (The big one.)
-2. **Push approval** — `approval` events + daemon pending-answer registry + `:answer` verb; desktop
-   routes the approval card by thread.
-3. **Remove model `delegate_background`** (keep `delegate`).
-4. **Hand-off** — `background_thread` command + `pool.background`; desktop "→ background" button.
-5. **Merge** — `merge_thread` command + `pool.merge`; desktop "Merge" button.
+1. **Push delivery** ✓ — `Turn`(mutable `owner_id`)/driver pool rework; `reply` events tagged by
+   thread (`pool.on_reply`, wired by the daemon); socket `:thread` path fire-and-forget (acks
+   "queued"); legacy request/reply kept for REPL/sipa-client/timer; desktop routes replies by thread.
+2. **Push approval** ✓ — `approval` events + daemon pending-answer registry (`_push_ask`/`answer`) +
+   `:answer <id> <text>` verb + Rust `answer_approval`; approval card routed per thread.
+3. **Remove model `delegate_background`** ✓ — `BackgroundDelegator` deleted; `delegate` fan-out kept.
+4. **Hand-off** ✓ — `pool.background(tid)` (live, no restart) + `:background` verb + Rust
+   `background_thread` + desktop "⤳ send to background" button (mirrors by moving the in-flight
+   request from the source transcript to the new one).
+5. **Merge** ✓ — `pool.merge(source, target)` (distill source → target's summary + a surfaced
+   `reply` note, drop source) + `:merge` verb + Rust `merge_thread` + desktop "merge" button on
+   non-focused slots (folds into the focused thread).
+
+**As-built notes.** Reply/approval delivery is decoupled from the send connection: a turn delivers
+**either** via push (`on_reply`, push clients) **or** via `respond` (legacy request/reply) — never
+both. The approval push tags by the thread id captured at `ask` time (a hand-off mid-approval would
+mis-tag — rare, acceptable). Merged findings land in the target's rolling `summary` (injected as
+"# Conversation so far") rather than as a message, avoiding user/user alternation issues. Proactive
+pushes (scheduled tasks) still ride the legacy plain-line path → main thread. GUI pass pending.
 
 ## Deferred (BACKLOG)
 

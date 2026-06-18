@@ -91,6 +91,10 @@ class Daemon:
         """Close a thread (distill to memory, free the slot) — the socket's `:resolve <id>`."""
         await self._pool.resolve(tid)
 
+    async def merge(self, source: str, target: str) -> None:
+        """Fold one thread's findings into another — the socket's `:merge <source> <target>`."""
+        await self._pool.merge(source, target)
+
     def register_sink(self, sink: Sink) -> Callable[[], None]:
         """A source registers an output channel; returns a fn to unregister it on disconnect."""
         self._sinks.add(sink)

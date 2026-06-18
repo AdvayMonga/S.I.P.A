@@ -23,6 +23,7 @@ ThreadHandler = Callable[[Conversation, str, "Ask | None", str], Awaitable[str]]
 OnChange = Callable[[list[dict[str, Any]]], Awaitable[None]]  # broadcast the thread snapshot
 OnReply = Callable[[str, str], Awaitable[None]]  # push a turn's reply, tagged by thread id
 Distill = Callable[[Conversation], Awaitable[None]]  # resolve -> persist to memory
+Summarize = Callable[[Conversation], Awaitable[str]]  # merge -> distill a thread to a findings note
 
 
 class PoolFull(Exception):
@@ -65,6 +66,7 @@ class ThreadPool:
         self.on_reply: OnReply | None = None  # push a reply tagged by thread (decoupled delivery)
         self.after_turn: Callable[[], Awaitable[None]] | None = None  # e.g. cost telemetry
         self.distill: Distill | None = None  # resolve → memory
+        self.summarize: Summarize | None = None  # merge → distill a thread to a findings note
 
     def create(self, label: str = "") -> str:
         if len(self._threads) >= self._max:
@@ -206,6 +208,30 @@ class ThreadPool:
         thread = self._threads.get(tid)
         if thread is not None and thread.current is not None:
             thread.current.task.cancel()
+
+    async def merge(self, source_tid: str, target_tid: str) -> None:
+        """Fold a thread's findings into another: distill the source into a note, inject it into the
+        target's context (its rolling summary), surface it in the target's transcript, then drop the
+        source. Merge = Resolve whose distillation lands in a thread, not memory."""
+        source = self._threads.get(source_tid)
+        target = self._threads.get(target_tid)
+        if source is None or target is None or source_tid == target_tid:
+            return
+        if source.current is not None:
+            source.current.task.cancel()
+        findings = ""
+        if self.summarize is not None:
+            try:
+                findings = await self.summarize(source.convo)
+            except Exception:
+                findings = ""
+        if findings:
+            note = f'[Merged from a side task "{source.label}"]\n{findings}'
+            target.convo.summary = f"{target.convo.summary}\n\n{note}".strip()
+            if self.on_reply is not None:
+                await self.on_reply(target_tid, note)  # surface it in the target's transcript
+        self._threads.pop(source_tid, None)
+        await self._changed()
 
     async def resolve(self, tid: str) -> None:
         """Close a thread: stop it, distill it to memory, remove it, free the slot."""

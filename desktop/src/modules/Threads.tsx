@@ -6,7 +6,7 @@ import { useThreads } from "../threads";
  * dim), label, and a per-state control (Stop while running, else Resolve). Click a slot to swap it
  * into the focused chat. "+ new thread" spins up another, up to 5. See design/concurrent-chats.md. */
 export function ThreadsModule() {
-  const { threads, focused, unread, swap, newThread, stop, resolve } = useThreads();
+  const { threads, focused, unread, swap, newThread, stop, resolve, merge } = useThreads();
 
   const hit = (e: MouseEvent, fn: () => void) => {
     e.stopPropagation(); // don't let the button click also swap the slot
@@ -37,9 +37,16 @@ export function ThreadsModule() {
                   stop
                 </button>
               ) : (
-                <button className="thread-act" onClick={(e) => hit(e, () => resolve(t.id))}>
-                  resolve
-                </button>
+                <>
+                  {!isFocused && (
+                    <button className="thread-act" onClick={(e) => hit(e, () => merge(t.id))}>
+                      merge
+                    </button>
+                  )}
+                  <button className="thread-act" onClick={(e) => hit(e, () => resolve(t.id))}>
+                    resolve
+                  </button>
+                </>
               )}
             </li>
           );

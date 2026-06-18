@@ -24,6 +24,7 @@ type ThreadsCtx = {
   background: () => Promise<void>;
   stop: (id: string) => Promise<void>;
   resolve: (id: string) => Promise<void>;
+  merge: (sourceId: string) => Promise<void>;
   answerApproval: (answer: string) => Promise<void>;
 };
 
@@ -147,6 +148,13 @@ export function ThreadsProvider({ children }: { children: ReactNode }) {
   const stop = (id: string) => invoke("stop_thread", { id }).then(() => {});
   const resolve = (id: string) => invoke("resolve_thread", { id }).then(() => {});
 
+  // Fold a side thread's findings into the focused thread (the note arrives as a tagged reply).
+  async function merge(sourceId: string) {
+    const target = focusedRef.current;
+    if (!target || sourceId === target) return;
+    await invoke("merge_thread", { source: sourceId, target });
+  }
+
   async function answerApproval(answer: string) {
     const id = focusedRef.current;
     const appr = id ? approvals[id] : null;
@@ -172,6 +180,7 @@ export function ThreadsProvider({ children }: { children: ReactNode }) {
     background,
     stop,
     resolve,
+    merge,
     answerApproval,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

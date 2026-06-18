@@ -175,9 +175,14 @@ async def _main() -> None:
             if summary:
                 await host.call_tool("memory_remember", {"content": summary, "kind": "episode"})
 
+        async def summarize_thread(convo: Conversation) -> str:
+            # Merge → distill the thread's findings to fold into the target thread.
+            return await finalize_summary(convo, provider) if convo.messages else ""
+
         pool.after_turn = emit_cost
         pool.on_change = emit_threads
         pool.distill = distill_thread  # on_reply is wired by the daemon (push, tagged by thread)
+        pool.summarize = summarize_thread
 
         convo = pool.thread(pool.create("main")).convo  # the default thread, seeded warm below
         await _resume_session(convo, host)

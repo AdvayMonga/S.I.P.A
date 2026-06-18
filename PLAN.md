@@ -397,9 +397,12 @@ is user-driven only. Full design + decisions: `design/concurrent-chats.md` § Fl
    thread (live, no restart): B takes the live convo + turn (`owner_id`→B), source rolls back to
    `start_len` and goes idle. `:background <id>` verb + Rust `background_thread` + desktop "⤳ send to
    background" button (mirrors by moving the in-flight request from A's transcript to B's). Tested.
-5. **Merge** — `merge_thread` command + `pool.merge`; desktop "Merge" button.
+5. **Merge** — DONE (2026-06-18). `pool.merge(source, target)` distills source → target's rolling
+   summary + a surfaced `reply` note, drops source. `:merge <src> <tgt>` verb + Rust `merge_thread` +
+   desktop "merge" button on non-focused slots (folds into the focused thread). Tested.
 
-Currently on **step 5 (merge)**.
+**M19 DONE (2026-06-18).** All 5 stages built; `make check` green (124 tests) + frontend builds +
+cargo. Remaining: a live `make dev` GUI pass (send/swap, → background mid-flight, merge, approval).
 
 ## Later (not started)
 

@@ -79,6 +79,12 @@ async fn resolve_thread(id: String) -> Result<(), String> {
     control(&format!(":resolve {id}")).await
 }
 
+/// Fold a thread's findings into another, then drop the source.
+#[tauri::command]
+async fn merge_thread(source: String, target: String) -> Result<(), String> {
+    control(&format!(":merge {source} {target}")).await
+}
+
 /// Fire a one-shot control line at the daemon and await its ack.
 async fn control(line: &str) -> Result<(), String> {
     let (read_half, mut write_half) = connect().await?.into_split();
@@ -125,6 +131,7 @@ pub fn run() {
             background_thread,
             stop_thread,
             resolve_thread,
+            merge_thread,
             answer_approval
         ])
         .setup(|app| {

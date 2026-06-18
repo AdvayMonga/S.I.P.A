@@ -146,20 +146,27 @@ set) → 25 aggregated tools, 26 with web.
 
 ## Next (see `PLAN.md`)
 
-**M18 — concurrent chats (the switchboard) DONE (2026-06-17).** The daemon's one serial
-`Conversation` is now a **flat pool of up to 5 concurrent chat threads** (`src/bot/pool.py`):
-serial-within / concurrent-across, `threads` telemetry, socket verbs `:thread new`/`:thread <id>`/
-`:stop <id>`/`:resolve <id>`, roster awareness (siblings' label+status injected per turn), Stop
-(cancel + roll the turn out of history), Resolve (distill to a memory episode + free the slot).
-Desktop: Rust `ask(thread_id)`/`new_thread`/`stop_thread`/`resolve_thread`; `threads.tsx` holds
-per-thread transcript/focus/unread (replies route to their thread post-swap); `Chat` shows the
-focused thread; `modules/Threads.tsx` is the switchboard panel (slots, swap, ready-light,
-Stop/Resolve, + new). **Pending: a live `make dev` GUI pass** (swap/ready-light/stop/resolve).
+**M18 + M19 — the fluid switchboard — DONE (2026-06-18).** The daemon's one serial `Conversation`
+is now a **flat pool of up to 5 concurrent chat threads** (`src/bot/pool.py`). M18: serial-within /
+concurrent-across, `threads` telemetry, swap, roster awareness, Stop, Resolve. M19 made it fluid:
+- **Push delivery** — replies + approvals are **thread-tagged push events** (not bound to the send
+  connection); socket `:thread` send is fire-and-forget; legacy request/reply kept for
+  REPL/sipa-client/timer. The pool's `Turn` has a mutable `owner_id` (driver coroutine, no held lock).
+- **Hand-off (⤳ send to background)** — `pool.background(tid)` lifts a *running* turn into a fresh
+  thread live (no restart): the new thread takes the live convo + turn, the source rolls back and is
+  free to keep chatting. Reply lands in the new thread.
+- **Merge** — fold a side thread's findings into the focused thread (distill → its summary + a
+  surfaced note), drop the source.
+- **Backgrounding is user-driven only** — model `delegate_background` removed; `delegate` fan-out
+  stays (in-turn synthesis, one slot).
 
-**Telemetry backbone + Token Usage + Background-Agents tiles** also DONE (2026-06-17) — one typed
-push channel (`TELEMETRY_PREFIX` + JSON `{topic,…}`); `cost` tile + status-bar cost live. (The old
-`agents` background-delegator tile was superseded by the Threads panel.) **Next candidates:** the
-Scheduler tile; fold scheduled tasks + `delegate_background` into the thread pool (BACKLOG).
+Socket verbs: `:thread new`/`:thread <id>`/`:background <id>`/`:stop <id>`/`:resolve <id>`/
+`:merge <src> <tgt>`/`:answer <id> <text>`. Desktop (`threads.tsx`/`Chat`/`modules/Threads.tsx`):
+per-thread transcript/focus/unread, swap, ready-light, "⤳ send to background", per-slot stop/merge/
+resolve, push reply+approval routing. **Pending: a live `make dev` GUI pass** of the whole flow.
+
+**Telemetry backbone + Token Usage tile** also live (one typed push channel, `TELEMETRY_PREFIX`).
+**Next candidates:** the Scheduler tile; persist open threads across restart (BACKLOG).
 
 Also buildable without input: graph one-hop, incremental reindex, wiring `LocalProvider` to a real
 runtime, the sandbox (unattended shell → autobuilder). All in `BACKLOG.md`. (Telegram dropped.)

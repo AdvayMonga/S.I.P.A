@@ -84,6 +84,10 @@ class SocketSource:
                 elif header.startswith(":resolve "):
                     await self._daemon.resolve(header[len(":resolve ") :].strip())
                     await _send(writer, "ok")
+                elif header.startswith(":merge "):
+                    src, _, tgt = header[len(":merge ") :].partition(" ")
+                    await self._daemon.merge(src.strip(), tgt.strip())
+                    await _send(writer, "ok")
                 elif header.startswith(":answer "):
                     qid, _, ans = header[len(":answer ") :].partition(" ")
                     self._daemon.answer(qid, ans)
