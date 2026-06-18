@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from bot.config import Settings
-from bot.provider import AnthropicProvider, LocalProvider, cost_usd, make_provider
+from bot.provider import AnthropicProvider, LocalProvider, _cache_tools, cost_usd, make_provider
 
 
 def _settings(provider: str) -> Settings:
@@ -23,6 +23,18 @@ def test_local_provider_not_wired_yet() -> None:
     provider = LocalProvider(_settings("local"))
     with pytest.raises(NotImplementedError):
         asyncio.run(provider.generate(system="", messages=[], tools=[]))
+
+
+def test_cache_tools_marks_last_only_without_mutating() -> None:
+    tools = [{"name": "a"}, {"name": "b"}]
+    out = _cache_tools(tools)
+    assert out[-1]["cache_control"] == {"type": "ephemeral"}
+    assert "cache_control" not in out[0]
+    assert tools == [{"name": "a"}, {"name": "b"}]  # caller's list untouched
+
+
+def test_cache_tools_empty_is_noop() -> None:
+    assert _cache_tools([]) == []
 
 
 def test_cost_usd_opus_4_8_rates() -> None:

@@ -16,6 +16,14 @@ def cost_usd(input_tokens: int, output_tokens: int, in_price: float, out_price: 
     return (input_tokens * in_price + output_tokens * out_price) / 1_000_000
 
 
+def _cache_tools(tools: list[Any]) -> list[Any]:
+    """Mark the final tool with an ephemeral cache breakpoint so the whole (static) tool prefix
+    is cached — tools are ~the largest byte-stable chunk of every turn. Copy, don't mutate."""
+    if not tools:
+        return tools
+    return [*tools[:-1], {**tools[-1], "cache_control": {"type": "ephemeral"}}]
+
+
 class ModelProvider(Protocol):
     """One call: system + history + tools -> a model response."""
 
@@ -42,6 +50,8 @@ class AnthropicProvider:
         self._out_tokens = 0
         self._last_in = 0  # the most recent call's delta
         self._last_out = 0
+        self._cache_read = 0  # running cached-input totals (the savings, for telemetry)
+        self._cache_write = 0
 
     async def generate(
         self, *, system: str, messages: list[Any], tools: list[Any]
@@ -52,19 +62,26 @@ class AnthropicProvider:
             max_tokens=self._max_tokens,
             system=system,
             messages=messages,
-            tools=tools,
+            tools=_cache_tools(tools),
             **extra,
         )
         usage = message.usage
+        # input_tokens already excludes cached reads; cache fields are None pre-cache-hit.
+        read = getattr(usage, "cache_read_input_tokens", None) or 0
+        write = getattr(usage, "cache_creation_input_tokens", None) or 0
         self._last_in = usage.input_tokens
         self._last_out = usage.output_tokens
         self._in_tokens += usage.input_tokens
         self._out_tokens += usage.output_tokens
+        self._cache_read += read
+        self._cache_write += write
         session = cost_usd(self._in_tokens, self._out_tokens, self._in_price, self._out_price)
         _cost_log.info(
-            "tokens in=%d out=%d | session %d/%d ≈ $%.4f",
+            "tokens in=%d out=%d cache(r=%d w=%d) | session %d/%d ≈ $%.4f",
             usage.input_tokens,
             usage.output_tokens,
+            read,
+            write,
             self._in_tokens,
             self._out_tokens,
             session,
@@ -78,6 +95,8 @@ class AnthropicProvider:
             "out_tokens": self._out_tokens,
             "last_in": self._last_in,
             "last_out": self._last_out,
+            "cache_read": self._cache_read,
+            "cache_write": self._cache_write,
             "cost_usd": session,
         }
 
