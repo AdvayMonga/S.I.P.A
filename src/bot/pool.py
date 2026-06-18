@@ -22,6 +22,7 @@ MAX_THREADS = 5  # flat-pool cap — up to 5 chats/tasks at once
 ThreadHandler = Callable[[Conversation, str, "Ask | None", str], Awaitable[str]]
 OnChange = Callable[[list[dict[str, Any]]], Awaitable[None]]  # broadcast the thread snapshot
 OnReply = Callable[[str, str], Awaitable[None]]  # push a turn's reply, tagged by thread id
+OnApproval = Callable[[str, str], Awaitable[str]]  # (thread id, question) -> the user's answer
 Distill = Callable[[Conversation], Awaitable[None]]  # resolve -> persist to memory
 Summarize = Callable[[Conversation], Awaitable[str]]  # merge -> distill a thread to a findings note
 
@@ -32,14 +33,14 @@ class PoolFull(Exception):
 
 @dataclass
 class Turn:
-    """One in-flight turn. `owner_id` is where its reply lands — mutable, so the turn can be handed
-    to another thread mid-flight. `respond` is the legacy request/reply sink (None for push)."""
+    """One in-flight turn. `owner_id` is where its reply *and* its mid-turn approvals are tagged —
+    mutable, so a hand-off re-tags both. `respond` is the legacy request/reply sink (else None)."""
 
-    task: asyncio.Task[str]
     owner_id: str
     start_len: int  # convo length before this turn — the rollback point on stop/hand-off
     convo: Conversation
     respond: "Respond | None" = None
+    task: asyncio.Task[str] | None = None  # set right after construction in _start
 
 
 @dataclass
@@ -64,6 +65,7 @@ class ThreadPool:
         self._counter = 0
         self.on_change: OnChange | None = None  # broadcast `threads` telemetry on state change
         self.on_reply: OnReply | None = None  # push a reply tagged by thread (decoupled delivery)
+        self.on_approval: OnApproval | None = None  # ask the user (push, tagged by current owner)
         self.after_turn: Callable[[], Awaitable[None]] | None = None  # e.g. cost telemetry
         self.distill: Distill | None = None  # resolve → memory
         self.summarize: Summarize | None = None  # merge → distill a thread to a findings note
@@ -123,11 +125,20 @@ class ThreadPool:
         start_len = len(thread.convo.messages)
         roster = self._roster(thread.id)
         convo = thread.convo
+        turn = Turn(thread.id, start_len, convo, respond)
+        # Push clients pass no ask: build one that tags approvals by the turn's *current* owner, so
+        # a mid-flight hand-off re-routes the approval to the new thread, not the one it started on.
+        if ask is None and (on_approval := self.on_approval) is not None:
+
+            async def push_ask(question: str) -> str:
+                return await on_approval(turn.owner_id, question)
+
+            ask = push_ask
 
         async def _run() -> str:
             return await self._handle(convo, text, ask, roster)
 
-        turn = Turn(asyncio.create_task(_run()), thread.id, start_len, convo, respond)
+        turn.task = asyncio.create_task(_run())
         thread.current = turn
         thread.status = "running"
         await self._changed()
@@ -137,6 +148,7 @@ class ThreadPool:
         """Await a turn and deliver its reply to whoever owns it at completion (the owner may have
         changed via hand-off). Mark that owner idle first (so waiters see consistent state), deliver
         the reply, then start its next queued message."""
+        assert turn.task is not None  # set in _start before the driver is spawned
         try:
             reply = await turn.task
         except asyncio.CancelledError:
@@ -203,11 +215,16 @@ class ThreadPool:
             await self._start(src, text, ask, respond)
         return bid
 
+    @staticmethod
+    def _cancel(turn: Turn | None) -> None:
+        if turn is not None and turn.task is not None:
+            turn.task.cancel()
+
     async def stop(self, tid: str) -> None:
         """Cancel a thread's in-flight turn (if any). The turn resolves to '[stopped]', idle."""
         thread = self._threads.get(tid)
-        if thread is not None and thread.current is not None:
-            thread.current.task.cancel()
+        if thread is not None:
+            self._cancel(thread.current)
 
     async def merge(self, source_tid: str, target_tid: str) -> None:
         """Fold a thread's findings into another: distill the source into a note, inject it into the
@@ -217,8 +234,7 @@ class ThreadPool:
         target = self._threads.get(target_tid)
         if source is None or target is None or source_tid == target_tid:
             return
-        if source.current is not None:
-            source.current.task.cancel()
+        self._cancel(source.current)
         findings = ""
         if self.summarize is not None:
             try:
@@ -238,8 +254,7 @@ class ThreadPool:
         thread = self._threads.pop(tid, None)
         if thread is None:
             return
-        if thread.current is not None:
-            thread.current.task.cancel()
+        self._cancel(thread.current)
         if self.distill is not None:
             try:
                 await self.distill(thread.convo)

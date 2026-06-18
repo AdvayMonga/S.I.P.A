@@ -199,10 +199,11 @@ Model-initiated `delegate_background` is **removed** — SIPA never backgrounds 
 
 **As-built notes.** Reply/approval delivery is decoupled from the send connection: a turn delivers
 **either** via push (`on_reply`, push clients) **or** via `respond` (legacy request/reply) — never
-both. The approval push tags by the thread id captured at `ask` time (a hand-off mid-approval would
-mis-tag — rare, acceptable). Merged findings land in the target's rolling `summary` (injected as
-"# Conversation so far") rather than as a message, avoiding user/user alternation issues. Proactive
-pushes (scheduled tasks) still ride the legacy plain-line path → main thread. GUI pass pending.
+both. Approval prompts route through `pool.on_approval` and tag by the turn's **current** `owner_id`
+(read at ask-time, not captured at turn-start), so an approval after a hand-off correctly shows on
+the new thread. Merged findings land in the target's rolling `summary` (injected as "# Conversation
+so far") rather than as a message, avoiding user/user alternation issues. Proactive pushes
+(scheduled tasks) still ride the legacy plain-line path → main thread. GUI pass pending.
 
 ## Deferred (BACKLOG)
 

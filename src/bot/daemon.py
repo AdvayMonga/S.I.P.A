@@ -38,6 +38,7 @@ class Daemon:
         self._pending: dict[str, asyncio.Future[str]] = {}  # mid-turn approvals awaiting an answer
         self._approval_counter = 0
         pool.on_reply = self.push_reply  # the daemon owns reply delivery (push, tagged by thread)
+        pool.on_approval = self.push_approval  # … and approval prompts (tagged by current owner)
 
     async def submit(self, text: str, respond: Respond, ask: Ask | None = None) -> None:
         """Legacy request/reply on the default thread (REPL, sipa-client, timer)."""
@@ -49,24 +50,21 @@ class Daemon:
 
     async def submit_to(self, tid: str, text: str) -> None:
         """Fire-and-forget a message to a thread — the desktop's push path. The reply arrives later
-        as a `reply` event tagged by thread; mid-turn approvals push an `approval` event."""
-        await self._pool.submit(tid, text, ask=self._push_ask(tid))
+        as a `reply` event tagged by thread; the pool builds the (owner-aware) approval asker."""
+        await self._pool.submit(tid, text)
 
-    def _push_ask(self, tid: str) -> Ask:
-        """An approval asker that pushes an `approval` event and awaits the answer (`:answer`)."""
-
-        async def ask(question: str) -> str:
-            self._approval_counter += 1
-            qid = str(self._approval_counter)
-            fut: asyncio.Future[str] = asyncio.get_running_loop().create_future()
-            self._pending[qid] = fut
-            await self.emit_telemetry("approval", {"thread": tid, "id": qid, "question": question})
-            try:
-                return await fut
-            finally:
-                self._pending.pop(qid, None)
-
-        return ask
+    async def push_approval(self, tid: str, question: str) -> str:
+        """Push an `approval` event tagged by thread and await the answer (via `:answer`). Called by
+        the pool with the turn's *current* owner, so a handed-off turn's approval re-routes."""
+        self._approval_counter += 1
+        qid = str(self._approval_counter)
+        fut: asyncio.Future[str] = asyncio.get_running_loop().create_future()
+        self._pending[qid] = fut
+        await self.emit_telemetry("approval", {"thread": tid, "id": qid, "question": question})
+        try:
+            return await fut
+        finally:
+            self._pending.pop(qid, None)
 
     def answer(self, qid: str, text: str) -> None:
         """Deliver a user's approval answer to the waiting turn — the socket's `:answer`."""

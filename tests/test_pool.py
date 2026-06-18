@@ -262,6 +262,36 @@ def test_background_hands_off_running_turn_without_restart() -> None:
     asyncio.run(scenario())
 
 
+def test_approval_after_handoff_tags_the_new_thread() -> None:
+    async def scenario() -> None:
+        started = asyncio.Event()
+        proceed = asyncio.Event()
+        approved = asyncio.Event()
+        tagged: list[str] = []
+
+        async def handle(convo: Conversation, text: str, ask: Any = None, roster: str = "") -> str:
+            started.set()
+            await proceed.wait()  # hold until we've handed the turn off, then ask for approval
+            return f"done:{await ask('approve?')}"
+
+        async def on_approval(tid: str, question: str) -> str:
+            tagged.append(tid)
+            approved.set()
+            return "yes"
+
+        pool = _pool(handle)
+        pool.on_approval = on_approval
+        a = pool.create("a")
+        await pool.submit(a, "task")  # push client → the pool builds the owner-aware ask
+        await asyncio.wait_for(started.wait(), 1)
+        bid = await pool.background(a)  # hand off before the approval fires
+        proceed.set()
+        await asyncio.wait_for(approved.wait(), 1)
+        assert tagged == [bid]  # approval tagged the NEW thread, not the source
+
+    asyncio.run(scenario())
+
+
 def test_merge_folds_findings_into_target_and_drops_source() -> None:
     async def scenario() -> None:
         async def handle(convo: Conversation, text: str, ask: Any = None, roster: str = "") -> str:
