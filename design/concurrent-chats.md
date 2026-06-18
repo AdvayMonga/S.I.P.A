@@ -131,14 +131,23 @@ Desktop Tauri commands mirror these: existing `ask` gains a `thread_id`; new `ne
 - Persisting open threads across daemon restarts (today only the resolved-episode memory survives).
 - Per-thread cost/telemetry slicing.
 
-## Build stages (small commits, in order)
+## Build stages — ALL DONE (2026-06-17)
 
-1. **ThreadPool backend** — `Thread` + `ThreadPool` (create/submit/stop/resolve, cap, per-thread
-   serial, concurrent across); daemon routes stdin/socket to a default thread. `threads` telemetry.
-   Tests. (No UI yet; behaviour-preserving for a single thread.)
-2. **Thread-addressed socket protocol** — `:thread new` / `:thread <id>`; multi-thread messaging.
-3. **Roster awareness** — inject sibling `{label, status}` into each turn.
-4. **Stop** — cancel a thread's running turn (+ exec subprocess cancel hook).
-5. **Resolve** — per-thread M11 distill + remove + free slot.
-6. **Desktop switchboard** — focused chat + panel boxes + swap + ready-light + Stop/Resolve
-   (several commits: protocol commands, thread-keyed transcript state, swap, controls).
+1. **ThreadPool backend** ✓ — `src/bot/pool.py`; daemon router → pool; serial-within/concurrent-
+   across; `threads` telemetry.
+2. **Thread-addressed socket protocol** ✓ — `:thread new` / `:thread <id>` (+ legacy default path).
+3. **Roster awareness** ✓ — sibling `{label, status}` injected per turn in `run_turn`.
+4. **Stop** ✓ — `:stop <id>`; cancelled turn rolled out of history; orphaned exec subprocess dies
+   at its timeout (BACKLOG).
+5. **Resolve** ✓ — `:resolve <id>`; thread distilled to its own memory episode, slot freed.
+6. **Desktop switchboard** ✓ — Rust `ask(thread_id)` / `new_thread` / `stop_thread` /
+   `resolve_thread`; `threads.tsx` (per-thread transcript/focus/unread, replies route post-swap);
+   `Chat` shows the focused thread; `modules/Threads.tsx` is the panel (slots, swap, ready-light,
+   Stop/Resolve, + new). Daemon broadcasts the snapshot on subscribe and on create.
+
+**As-built notes.** Layout reuses the customizable tile grid (the "Background Agents" tile is now
+the Threads switchboard — registry id kept as `"agents"` for saved-layout compatibility). Threads
+are created dynamically up to 5 (a "+ new thread" button), not pre-rendered fixed slots. The desktop
+derives `ready` (idle + unread + unfocused); the daemon only tracks running/idle. Proactive pushes
+(background results, scheduled tasks) land on the main (lowest-id) thread. `delegate_background`'s
+own `agents` telemetry is now UI-orphaned pending the pool unification (BACKLOG).

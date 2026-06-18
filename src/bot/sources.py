@@ -176,6 +176,7 @@ async def _serve_new_thread(
         await _send(writer, f"[error] {exc}")
         return
     await _send(writer, tid)
+    await daemon.broadcast_threads()  # so every switchboard shows the new slot immediately
     await _serve_thread(daemon, tid, reader, writer)
 
 

@@ -88,9 +88,10 @@ servers/       capabilities (independent MCP processes, spawned by the host):
   exec/          run_shell in EXEC_ROOT (off by default); approval-gated, unattended-denied
 desktop/       Tauri v2 dashboard (React+Vite+TS frontend + Rust shell) → daemon socket. Outside pkg.
                customizable module GRID (react-grid-layout v1.5): edit-mode drag/add/remove,
-               layout persisted to localStorage. Live modules: Chat + Token Usage (topic "cost") +
-               Background Agents (topic "agents"). Scheduler still a placeholder tile. Telemetry
-               rides one typed push channel (TELEMETRY_PREFIX). See design/dashboard.md.
+               layout persisted to localStorage. Modules: Chat (focused thread) + Threads
+               switchboard (panel; topic "threads") + Token Usage (topic "cost"); Scheduler still a
+               placeholder. Telemetry + chat ride one typed push channel (TELEMETRY_PREFIX). See
+               design/dashboard.md + design/concurrent-chats.md.
 tests/
 data/          index.db, vault_search.db, scheduler_state.json (rebuildable) + memory.db
                (SOURCE OF TRUTH, not rebuildable). All gitignored.
@@ -145,14 +146,20 @@ set) → 25 aggregated tools, 26 with web.
 
 ## Next (see `PLAN.md`)
 
-**Active task: wire the dashboard's placeholder tiles to live daemon state.** Telemetry backbone +
-**Token Usage DONE (2026-06-17)** — one typed push channel (`TELEMETRY_PREFIX` + JSON `{topic, …}`
-alongside plain chat lines; daemon `emit_telemetry` / `after_turn`; desktop routes on prefix + topic
-via `telemetry.tsx`/`useTelemetry`). `ModelProvider.usage()` feeds a `cost` snapshot after every turn
-→ the Token Usage tile + status-bar cost render live. **Background Agents DONE (2026-06-17)** —
-`BackgroundDelegator` pushes an `agents` snapshot (per-agent `{id, task, status}`) on each state
-change → `modules/Agents.tsx` renders the live list. **Next: Scheduler** — same envelope (decided:
-one channel not a separate transport, `DECISIONS.md` 2026-06-17).
+**M18 — concurrent chats (the switchboard) DONE (2026-06-17).** The daemon's one serial
+`Conversation` is now a **flat pool of up to 5 concurrent chat threads** (`src/bot/pool.py`):
+serial-within / concurrent-across, `threads` telemetry, socket verbs `:thread new`/`:thread <id>`/
+`:stop <id>`/`:resolve <id>`, roster awareness (siblings' label+status injected per turn), Stop
+(cancel + roll the turn out of history), Resolve (distill to a memory episode + free the slot).
+Desktop: Rust `ask(thread_id)`/`new_thread`/`stop_thread`/`resolve_thread`; `threads.tsx` holds
+per-thread transcript/focus/unread (replies route to their thread post-swap); `Chat` shows the
+focused thread; `modules/Threads.tsx` is the switchboard panel (slots, swap, ready-light,
+Stop/Resolve, + new). **Pending: a live `make dev` GUI pass** (swap/ready-light/stop/resolve).
+
+**Telemetry backbone + Token Usage + Background-Agents tiles** also DONE (2026-06-17) — one typed
+push channel (`TELEMETRY_PREFIX` + JSON `{topic,…}`); `cost` tile + status-bar cost live. (The old
+`agents` background-delegator tile was superseded by the Threads panel.) **Next candidates:** the
+Scheduler tile; fold scheduled tasks + `delegate_background` into the thread pool (BACKLOG).
 
 Also buildable without input: graph one-hop, incremental reindex, wiring `LocalProvider` to a real
 runtime, the sandbox (unattended shell → autobuilder). All in `BACKLOG.md`. (Telegram dropped.)

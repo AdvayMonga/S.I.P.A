@@ -364,10 +364,14 @@ the slot). Full design + decisions + staged build: `design/concurrent-chats.md`.
 5. **Resolve** — DONE (2026-06-17). Socket `:resolve <id>` → `daemon.resolve` → pool drops the
    thread + frees the slot; `cli.distill` remembers it as its own memory episode (recallable;
    continuity via memory, distinct from M11's superseded `session-summary`). Tested over the socket.
-6. **Desktop switchboard** — focused chat + panel boxes + swap + ready-light + Stop/Resolve.
+6. **Desktop switchboard** — DONE (2026-06-17). Rust `ask(thread_id)`/`new_thread`/`stop_thread`/
+   `resolve_thread`; `threads.tsx` (per-thread transcript/focus/unread, replies route post-swap);
+   `Chat` = focused thread; `modules/Threads.tsx` panel (slots, swap, ready-light, Stop/Resolve, +
+   new). Layout reuses the tile grid (chosen). Build-verified (tsc/vite/cargo); GUI pass pending.
 
-**Backend (steps 1–5) DONE.** Currently on **step 6 (desktop switchboard UI)** — the frontend
-piece, where the UX choices live. `make check` green, 122 tests.
+**M18 DONE (2026-06-17).** All 6 stages built; `make check` green (122 tests) + frontend builds +
+cargo. Remaining: a live `make dev` GUI pass (swap/ready-light/stop/resolve visually). Deferred:
+fold scheduled + `delegate_background` into the pool; persist open threads across restart (BACKLOG).
 
 ## Later (not started)
 

@@ -264,43 +264,61 @@
   color: var(--text);
 }
 
-/* ── background agents module ─────────────────────────────── */
-.agents {
+/* ── threads (the switchboard panel) ──────────────────────── */
+.threads {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.thread-list {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   margin: 0;
-  padding: 10px 12px;
+  padding: 8px;
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
 }
-.agent {
+.thread {
   display: flex;
   align-items: center;
   gap: 9px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  cursor: pointer;
   font-size: 13px;
+  border: 1px solid transparent;
 }
-.agent-dot {
+.thread:hover {
+  background: var(--surface);
+}
+.thread--focused {
+  background: var(--surface);
+  border-color: var(--signal-cool);
+}
+.thread-dot {
   flex: none;
   width: 8px;
   height: 8px;
   border-radius: 50%;
   background: var(--muted);
 }
-.agent-dot--running {
+.thread-dot--running {
   background: var(--signal-warm);
   box-shadow: 0 0 7px var(--signal-warm);
   animation: beat 1.1s ease-in-out infinite;
 }
-.agent-dot--done {
+.thread-dot--ready {
   background: var(--signal-cool);
+  box-shadow: 0 0 8px var(--signal-cool);
 }
-.agent-dot--error {
-  background: #d2603f;
+.thread-dot--idle {
+  background: var(--muted);
 }
-.agent-task {
+.thread-label {
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -308,16 +326,47 @@
   white-space: nowrap;
   color: var(--text);
 }
-.agent-status {
+.thread-act {
   flex: none;
   font-family: var(--font-mono);
   font-size: 9px;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
+  background: transparent;
   color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+.thread-act:hover {
+  color: var(--text);
+  border-color: var(--muted);
+}
+.thread-act.stop:hover {
+  color: var(--signal-warm);
+  border-color: var(--signal-warm);
+}
+.thread-new {
+  margin: 6px 8px 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: transparent;
+  color: var(--signal-cool);
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  padding: 6px;
+  cursor: pointer;
+}
+.thread-new:hover:not(:disabled) {
+  border-color: var(--signal-cool);
+}
+.thread-new:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 @media (prefers-reduced-motion: reduce) {
-  .agent-dot--running {
+  .thread-dot--running {
     animation: none;
   }
 }

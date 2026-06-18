@@ -3,32 +3,25 @@ import { listen } from "@tauri-apps/api/event";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 
 import { useBusy } from "../state";
+import { useThreads } from "../threads";
 
-type Msg = { role: "user" | "sipa"; text: string };
-
-/** Chat over the daemon socket. Sets the shared busy flag (status-bar pulse) while a request is in
- * flight. The main module on the dashboard. */
+/** Chat with the focused thread. Transcript + send live in the threads store (so replies route per
+ * thread across swaps); this is the focused thread's view. The main module on the dashboard. */
 export function Chat() {
   const { setBusy } = useBusy();
-  const [messages, setMessages] = useState<Msg[]>([]);
+  const { transcript, pending, send: sendThread, focused } = useThreads();
   const [input, setInput] = useState("");
-  const [pending, setPending] = useState(false);
   const [approval, setApproval] = useState<{ id: string; question: string } | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  const messages = transcript;
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, pending]);
 
-  // Proactive messages the daemon pushes on its own (background results, scheduled tasks).
   useEffect(() => {
-    const unlisten = listen<string>("sipa-push", (e) => {
-      setMessages((m) => [...m, { role: "sipa", text: e.payload }]);
-    });
-    return () => {
-      unlisten.then((off) => off());
-    };
-  }, []);
+    setBusy(pending);
+  }, [pending, setBusy]);
 
   // Mid-turn approval questions (e.g. before running a shell command).
   useEffect(() => {
@@ -48,20 +41,9 @@ export function Chat() {
   async function send(e: FormEvent) {
     e.preventDefault();
     const text = input.trim();
-    if (!text || pending) return;
+    if (!text || pending || !focused) return;
     setInput("");
-    setMessages((m) => [...m, { role: "user", text }]);
-    setPending(true);
-    setBusy(true);
-    try {
-      const reply = await invoke<string>("ask", { message: text });
-      setMessages((m) => [...m, { role: "sipa", text: reply }]);
-    } catch (err) {
-      setMessages((m) => [...m, { role: "sipa", text: `[error] ${err}` }]);
-    } finally {
-      setPending(false);
-      setBusy(false);
-    }
+    await sendThread(text);
   }
 
   return (
