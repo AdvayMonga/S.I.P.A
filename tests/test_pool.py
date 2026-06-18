@@ -213,12 +213,28 @@ def test_resolve_removes_the_thread_and_frees_the_slot() -> None:
         async def distill(convo: Conversation) -> None:
             distilled.append(convo)
 
-        pool = _pool(handle, max_threads=1)
+        pool = _pool(handle, max_threads=2)
         pool.distill = distill
+        keep = pool.create()
         tid = pool.create()
         await pool.resolve(tid)
         assert len(distilled) == 1  # resolve distilled the thread to memory
+        assert {t["id"] for t in pool.snapshot()} == {keep}  # gone; the other remains
         pool.create()  # slot freed → can create again under the cap
+
+    asyncio.run(scenario())
+
+
+def test_resolving_the_last_thread_keeps_one() -> None:
+    async def scenario() -> None:
+        async def handle(convo: Conversation, text: str, ask: Any = None, roster: str = "") -> str:
+            return "ok"
+
+        pool = _pool(handle)
+        only = pool.create("only")
+        await pool.resolve(only)
+        snap = pool.snapshot()
+        assert len(snap) == 1 and snap[0]["id"] != only  # a fresh thread replaced it
 
     asyncio.run(scenario())
 

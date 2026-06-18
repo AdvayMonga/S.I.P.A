@@ -255,6 +255,8 @@ class ThreadPool:
         if thread is None:
             return
         self._cancel(thread.current)
+        if not self._threads:  # never leave the pool empty — resolving your last chat → a fresh one
+            self.create("main")
         if self.distill is not None:
             try:
                 await self.distill(thread.convo)

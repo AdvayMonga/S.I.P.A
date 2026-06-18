@@ -67,7 +67,9 @@ actions:
   fan-out sub-agents. The thread drops to `idle`; partial work is discarded. Shown when `running`.
 - **Resolve** — close the thread: distill it to a memory episode (the per-thread M11 flow —
   `finalize_summary` → supersede/append episode), clear its context, remove it, free the slot.
-  Shown when `idle`/`ready`. Resolving a `running` thread = stop-then-resolve.
+  Shown when `idle`/`ready`. Resolving a `running` thread = stop-then-resolve. The pool never goes
+  empty: resolving your *last* thread spins up a fresh one (a clean chat is always available), and
+  the desktop moves focus off the resolved thread to whatever remains.
 
 **Cancellation (as-built).** Stop cancels the thread's turn task; `run_turn` catches
 `CancelledError` and **rolls the stopped turn out of the conversation** (back to the pre-message

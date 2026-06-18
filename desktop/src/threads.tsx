@@ -46,13 +46,13 @@ export function ThreadsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const list = snap?.threads ?? [];
     threadsRef.current = list;
-    if (list.length === 0) return;
     setTranscripts((t) => {
       const next = { ...t };
       for (const th of list) if (!(th.id in next)) next[th.id] = [];
       return next;
     });
-    setFocused((f) => (f && list.some((th) => th.id === f) ? f : list[0].id));
+    // Keep focus on a thread that still exists; if the focused one was resolved, move to another.
+    setFocused((f) => (f && list.some((th) => th.id === f) ? f : (list[0]?.id ?? null)));
   }, [snap]);
 
   function append(id: string, msg: Msg) {
