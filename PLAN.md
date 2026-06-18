@@ -373,6 +373,25 @@ the slot). Full design + decisions + staged build: `design/concurrent-chats.md`.
 cargo. Remaining: a live `make dev` GUI pass (swap/ready-light/stop/resolve visually). Deferred:
 fold scheduled + `delegate_background` into the pool; persist open threads across restart (BACKLOG).
 
+## M19 — fluid threads (push delivery, hand-off, merge) — BUILDING
+
+Decouples reply delivery from the send connection so live work can move between threads. Replies +
+approvals become **thread-tagged push events**; `send` is fire-and-forget; the pool gets a
+`Turn`/driver rework so a running turn isn't pinned to its origin thread. Then: **→ background**
+(hand a running turn into a fresh thread, no restart) and **Merge** (fold a thread's findings into
+the focused one). Model-driven `delegate_background` removed; `delegate` fan-out stays. Backgrounding
+is user-driven only. Full design + decisions: `design/concurrent-chats.md` § Fluid threads.
+
+**Ordered build (small commits):**
+1. **Push delivery** — Turn/driver pool rework; `reply` events tagged by thread; `send`
+   fire-and-forget; desktop routes replies by thread. (The big one.)
+2. **Push approval** — `approval` events + daemon pending-answer registry + `:answer` verb.
+3. **Remove model `delegate_background`** (keep `delegate`).
+4. **Hand-off** — `background_thread` command + `pool.background`; desktop "→ background" button.
+5. **Merge** — `merge_thread` command + `pool.merge`; desktop "Merge" button.
+
+Currently on **step 1 (push delivery)**.
+
 ## Later (not started)
 
 A self-hosted SearXNG backend (full OSS), web-image vision, real-tokenizer context budget +

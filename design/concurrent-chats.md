@@ -124,6 +124,74 @@ Desktop Tauri commands mirror these: existing `ask` gains a `thread_id`; new `ne
   non-focused threads still receive their replies (the pending `ask` resolves into the right
   transcript whenever it completes).
 
+## Fluid threads (M19): push delivery, hand-off, merge
+
+M18 left one thing connection-bound: a turn's **reply comes back on the connection that sent the
+message** (request/reply). That ties a reply to the thread you sent from, which fights moving live
+work between threads. M19 decouples delivery so threads become fully fluid — you can peel a running
+task off into its own thread mid-flight and merge it back when done.
+
+### The model change: thread-tagged push delivery
+
+Replies and approval prompts stop riding the send connection. Instead they flow over the existing
+`:subscribe` push channel as **typed events tagged by thread id**:
+- reply → `{topic: "reply", thread, text}`
+- approval → `{topic: "approval", thread, id, question}`
+
+Sending a message becomes **fire-and-forget**: the socket `send` submits the turn and returns an ack
+immediately; the reply arrives later as a `reply` event tagged with whatever thread owns the task at
+completion. The desktop is then a pure view — every thread's replies/approvals/status flow over one
+channel, routed by `thread`. Proactive results (scheduled, background) are just `reply` events
+tagged to the thread that ran them. (The old plain-line `sipa-push` is retired for replies.)
+
+**Approval round-trip** moves to the daemon: a turn's `ask(question)` registers a pending future
+keyed by a question id, pushes an `approval` event, and awaits the answer — delivered by a new
+`:answer <id> <text>` verb (mirrors the desktop's existing approval registry, moved server-side).
+
+### Pool concurrency rework (so a turn isn't bound to its origin thread)
+
+Today `pool.submit` holds the thread's lock across the whole turn — which would pin a running turn
+to its thread. M19 decouples them:
+- A **`Turn`** = `{task, owner_id (mutable), start_len, convo}`. `owner_id` is where its reply lands;
+  it can change (hand-off). `start_len` is the rollback point.
+- A thread serializes its own turns via `current` + a small `pending` queue (not a held lock). A
+  separate **driver** coroutine awaits the turn and, on completion, pushes the reply tagged by the
+  turn's *current* `owner_id`, frees that owner, and starts its next pending message.
+
+### Hand-off (mid-flight → background)
+
+`background_thread(tid)` lifts `tid`'s running turn into a fresh thread B, **live, without restart**:
+- B.convo = the turn's live convo (the object it's mutating); B.current = the turn; B running.
+- A.convo = a copy of the convo's pre-turn prefix (`messages[:start_len]` + summary); A idle, free.
+- turn.owner_id = B — so when it finishes, the reply lands in B.
+
+A is instantly free to keep chatting (its conversation intact up to before the backgrounded task);
+the task runs to completion in B; you **Merge** B back when ready. Copying the `[:start_len]` prefix
+is safe — the running turn only appends past it.
+
+### Merge
+
+`merge_thread(source, target)` distills `source` (the `finalize_summary` machinery) into a findings
+note, appends it into `target`'s convo so the next turn can use it, surfaces it in `target`'s
+transcript, and drops `source` (frees the slot). Merge = Resolve whose distillation lands in a
+thread's context instead of (just) memory.
+
+### Backgrounding is user-driven only
+
+Model-initiated `delegate_background` is **removed** — SIPA never backgrounds on its own. Fan-out
+`delegate` (in-turn, synthesizes, one slot) stays. Backgrounding is a UI action: **→ background**
+(hand-off) and **swap** (already built) are how parallelism happens, always your call.
+
+### Build stages (M19)
+
+1. **Push delivery** — Turn/driver pool rework; `reply` events tagged by thread; socket `send`
+   fire-and-forget; desktop routes replies by thread. (The big one.)
+2. **Push approval** — `approval` events + daemon pending-answer registry + `:answer` verb; desktop
+   routes the approval card by thread.
+3. **Remove model `delegate_background`** (keep `delegate`).
+4. **Hand-off** — `background_thread` command + `pool.background`; desktop "→ background" button.
+5. **Merge** — `merge_thread` command + `pool.merge`; desktop "Merge" button.
+
 ## Deferred (BACKLOG)
 
 - Folding scheduled tasks & `delegate_background` into the thread pool (the grand unification).
