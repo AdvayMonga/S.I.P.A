@@ -19,7 +19,7 @@ async def _collect(pool: ThreadPool, tid: str, text: str) -> str:
         out.append(reply)
         done.set()
 
-    await pool.submit(tid, text, respond)
+    await pool.submit(tid, text, respond=respond)
     await asyncio.wait_for(done.wait(), 2)
     return out[0]
 
@@ -32,6 +32,56 @@ def test_submit_runs_a_turn_and_delivers_the_reply() -> None:
         pool = _pool(handle)
         tid = pool.create()
         assert await _collect(pool, tid, "hello") == "HELLO"
+
+    asyncio.run(scenario())
+
+
+def test_push_delivery_when_no_respond() -> None:
+    async def scenario() -> None:
+        async def handle(convo: Conversation, text: str, ask: Any = None, roster: str = "") -> str:
+            return text.upper()
+
+        pushed: list[tuple[str, str]] = []
+        done = asyncio.Event()
+
+        async def on_reply(tid: str, text: str) -> None:
+            pushed.append((tid, text))
+            done.set()
+
+        pool = _pool(handle)
+        pool.on_reply = on_reply
+        tid = pool.create()
+        await pool.submit(tid, "hello")  # no respond → reply is pushed, tagged by thread
+        await asyncio.wait_for(done.wait(), 2)
+        assert pushed == [(tid, "HELLO")]
+
+    asyncio.run(scenario())
+
+
+def test_serial_within_thread() -> None:
+    async def scenario() -> None:
+        order: list[str] = []
+
+        async def handle(convo: Conversation, text: str, ask: Any = None, roster: str = "") -> str:
+            order.append(f"start:{text}")
+            await asyncio.sleep(0.03)
+            order.append(f"end:{text}")
+            return text
+
+        replies: list[str] = []
+        done = asyncio.Event()
+
+        async def respond(reply: str) -> None:
+            replies.append(reply)
+            if len(replies) == 2:
+                done.set()
+
+        pool = _pool(handle)
+        tid = pool.create()
+        await pool.submit(tid, "first", respond=respond)
+        await pool.submit(tid, "second", respond=respond)  # queued behind first (same thread)
+        await asyncio.wait_for(done.wait(), 2)
+        assert order == ["start:first", "end:first", "start:second", "end:second"]
 
     asyncio.run(scenario())
 
@@ -108,15 +158,18 @@ def test_threads_run_concurrently_across_but_serial_within() -> None:
 
         pool = _pool(handle)
         a, b = pool.create(), pool.create()
+        done = asyncio.Event()
+        finished: list[str] = []
 
-        async def fire(tid: str, text: str) -> None:
-            async def respond(_reply: str) -> None: ...
+        async def respond(reply: str) -> None:
+            finished.append(reply)
+            if len(finished) == 2:
+                done.set()
 
-            await pool.submit(tid, text, respond)
-
-        # Two threads in parallel interleave; both starts precede both ends.
-        await asyncio.gather(fire(a, "A"), fire(b, "B"))
-        assert order[:2] == ["start:A", "start:B"] or order[:2] == ["start:B", "start:A"]
+        await pool.submit(a, "A", respond=respond)  # fire-and-forget; turns run concurrently
+        await pool.submit(b, "B", respond=respond)
+        await asyncio.wait_for(done.wait(), 2)
+        # Both threads ran at once: both starts precede both ends.
         assert set(order[:2]) == {"start:A", "start:B"}
 
     asyncio.run(scenario())
@@ -140,13 +193,12 @@ def test_stop_cancels_a_running_turn() -> None:
             out.append(reply)
             done.set()
 
-        turn = asyncio.create_task(pool.submit(tid, "long", respond))
+        await pool.submit(tid, "long", respond=respond)
         await asyncio.wait_for(started.wait(), 1)
         await pool.stop(tid)
         await asyncio.wait_for(done.wait(), 1)
         assert out == ["[stopped]"]
         assert pool.thread(tid).status == "idle"
-        turn.cancel()
 
     asyncio.run(scenario())
 

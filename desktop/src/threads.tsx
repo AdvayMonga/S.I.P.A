@@ -6,21 +6,24 @@ import { useTelemetry } from "./telemetry";
 
 export type ThreadMeta = { id: string; label: string; status: "idle" | "running" };
 export type Msg = { role: "user" | "sipa"; text: string };
+type Approval = { id: string; question: string };
 
 // The switchboard's client state: the pool's thread list (from telemetry) + per-thread transcripts,
-// which thread is focused, and which have unread results. Lives above Chat so a reply routes to the
-// thread it was sent to even after you've swapped away. See design/concurrent-chats.md.
+// which thread is focused, and which have unread results. Replies and approvals arrive as pushed
+// events tagged by thread, so they route to the right thread even after you've swapped away.
 type ThreadsCtx = {
   threads: ThreadMeta[];
   focused: string | null;
   transcript: Msg[]; // the focused thread's messages
   pending: boolean; // focused thread is awaiting a reply
   unread: Set<string>;
+  approval: Approval | null; // focused thread's pending mid-turn question
   send: (text: string) => Promise<void>;
   swap: (id: string) => void;
   newThread: () => Promise<void>;
   stop: (id: string) => Promise<void>;
   resolve: (id: string) => Promise<void>;
+  answerApproval: (answer: string) => Promise<void>;
 };
 
 const Ctx = createContext<ThreadsCtx>(null as unknown as ThreadsCtx);
@@ -32,12 +35,12 @@ export function ThreadsProvider({ children }: { children: ReactNode }) {
   const [transcripts, setTranscripts] = useState<Record<string, Msg[]>>({});
   const [pendingSet, setPendingSet] = useState<Set<string>>(new Set());
   const [unread, setUnread] = useState<Set<string>>(new Set());
+  const [approvals, setApprovals] = useState<Record<string, Approval>>({});
 
   const focusedRef = useRef<string | null>(null);
   focusedRef.current = focused;
   const threadsRef = useRef<ThreadMeta[]>([]);
 
-  // On each thread snapshot: seed transcripts for new ids, keep focus valid.
   useEffect(() => {
     const list = snap?.threads ?? [];
     threadsRef.current = list;
@@ -54,13 +57,38 @@ export function ThreadsProvider({ children }: { children: ReactNode }) {
     setTranscripts((t) => ({ ...t, [id]: [...(t[id] ?? []), msg] }));
   }
 
-  // A reply arrived for thread `id`: append it, and mark unread if you've since looked elsewhere.
+  function clearPending(id: string) {
+    setPendingSet((p) => {
+      const n = new Set(p);
+      n.delete(id);
+      return n;
+    });
+  }
+
+  // A reply arrived for thread `id`: append it, clear its pending, mark unread if you've moved on.
   function deliver(id: string, msg: Msg) {
     append(id, msg);
+    clearPending(id);
     if (focusedRef.current !== id) setUnread((u) => new Set(u).add(id));
   }
 
-  // Proactive pushes (background results, scheduled tasks) land on the main (lowest-id) thread.
+  // Pushed events tagged by thread: replies and mid-turn approvals (each is discrete, not state).
+  useEffect(() => {
+    const un = listen<{ topic: string; thread: string; text?: string; id?: string; question?: string }>(
+      "sipa-telemetry",
+      (e) => {
+        const ev = e.payload;
+        if (ev.topic === "reply") deliver(ev.thread, { role: "sipa", text: ev.text ?? "" });
+        else if (ev.topic === "approval")
+          setApprovals((a) => ({ ...a, [ev.thread]: { id: ev.id!, question: ev.question! } }));
+      },
+    );
+    return () => {
+      un.then((off) => off());
+    };
+  }, []);
+
+  // Proactive plain pushes (scheduled tasks etc.) land on the main (lowest-id) thread.
   useEffect(() => {
     const un = listen<string>("sipa-push", (e) => {
       const ids = threadsRef.current.map((t) => t.id).sort((a, b) => +a - +b);
@@ -77,16 +105,9 @@ export function ThreadsProvider({ children }: { children: ReactNode }) {
     append(target, { role: "user", text });
     setPendingSet((p) => new Set(p).add(target));
     try {
-      const reply = await invoke<string>("ask", { threadId: target, message: text });
-      deliver(target, { role: "sipa", text: reply });
+      await invoke("send", { threadId: target, message: text }); // fire-and-forget; reply via push
     } catch (err) {
       deliver(target, { role: "sipa", text: `[error] ${err}` });
-    } finally {
-      setPendingSet((p) => {
-        const n = new Set(p);
-        n.delete(target);
-        return n;
-      });
     }
   }
 
@@ -108,17 +129,31 @@ export function ThreadsProvider({ children }: { children: ReactNode }) {
   const stop = (id: string) => invoke("stop_thread", { id }).then(() => {});
   const resolve = (id: string) => invoke("resolve_thread", { id }).then(() => {});
 
+  async function answerApproval(answer: string) {
+    const id = focusedRef.current;
+    const appr = id ? approvals[id] : null;
+    if (!id || !appr) return;
+    setApprovals((a) => {
+      const n = { ...a };
+      delete n[id];
+      return n;
+    });
+    await invoke("answer_approval", { id: appr.id, answer });
+  }
+
   const value: ThreadsCtx = {
     threads,
     focused,
     transcript: (focused && transcripts[focused]) || [],
     pending: focused ? pendingSet.has(focused) : false,
     unread,
+    approval: (focused && approvals[focused]) || null,
     send,
     swap,
     newThread,
     stop,
     resolve,
+    answerApproval,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

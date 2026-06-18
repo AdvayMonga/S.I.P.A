@@ -35,19 +35,48 @@ class Daemon:
     def __init__(self, pool: "ThreadPool") -> None:
         self._pool = pool
         self._sinks: set[Sink] = set()  # connected output channels for proactive messages
+        self._pending: dict[str, asyncio.Future[str]] = {}  # mid-turn approvals awaiting an answer
+        self._approval_counter = 0
+        pool.on_reply = self.push_reply  # the daemon owns reply delivery (push, tagged by thread)
 
     async def submit(self, text: str, respond: Respond, ask: Ask | None = None) -> None:
-        await self._pool.submit(self._pool.default_thread(), text, respond, ask)
+        """Legacy request/reply on the default thread (REPL, sipa-client, timer)."""
+        await self._pool.submit(self._pool.default_thread(), text, ask, respond)
 
     def create_thread(self, label: str = "") -> str:
         """Create a new chat thread (raises PoolFull past the cap) — the socket's `:thread new`."""
         return self._pool.create(label)
 
-    async def submit_to(
-        self, tid: str, text: str, respond: Respond, ask: Ask | None = None
-    ) -> None:
-        """Route a message to a specific thread — the socket's `:thread <id>` path."""
-        await self._pool.submit(tid, text, respond, ask)
+    async def submit_to(self, tid: str, text: str) -> None:
+        """Fire-and-forget a message to a thread — the desktop's push path. The reply arrives later
+        as a `reply` event tagged by thread; mid-turn approvals push an `approval` event."""
+        await self._pool.submit(tid, text, ask=self._push_ask(tid))
+
+    def _push_ask(self, tid: str) -> Ask:
+        """An approval asker that pushes an `approval` event and awaits the answer (`:answer`)."""
+
+        async def ask(question: str) -> str:
+            self._approval_counter += 1
+            qid = str(self._approval_counter)
+            fut: asyncio.Future[str] = asyncio.get_running_loop().create_future()
+            self._pending[qid] = fut
+            await self.emit_telemetry("approval", {"thread": tid, "id": qid, "question": question})
+            try:
+                return await fut
+            finally:
+                self._pending.pop(qid, None)
+
+        return ask
+
+    def answer(self, qid: str, text: str) -> None:
+        """Deliver a user's approval answer to the waiting turn — the socket's `:answer`."""
+        fut = self._pending.get(qid)
+        if fut is not None and not fut.done():
+            fut.set_result(text)
+
+    async def push_reply(self, tid: str, text: str) -> None:
+        """Push a turn's reply tagged by thread (wired to the pool's on_reply)."""
+        await self.emit_telemetry("reply", {"thread": tid, "text": text})
 
     async def stop(self, tid: str) -> None:
         """Cancel a thread's in-flight turn — the socket's `:stop <id>`."""

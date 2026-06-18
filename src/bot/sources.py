@@ -81,6 +81,10 @@ class SocketSource:
                 elif header.startswith(":resolve "):
                     await self._daemon.resolve(header[len(":resolve ") :].strip())
                     await _send(writer, "ok")
+                elif header.startswith(":answer "):
+                    qid, _, ans = header[len(":answer ") :].partition(" ")
+                    self._daemon.answer(qid, ans)
+                    await _send(writer, "ok")
                 else:  # legacy: a plain message on the default thread (sipa-client)
                     await _converse(reader, writer, submit, first=first)
             finally:
@@ -158,18 +162,21 @@ async def _converse(
 async def _serve_thread(
     daemon: Daemon, tid: str, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
 ) -> None:
-    """Chat on a specific thread: every message routes to thread `tid`."""
-
-    async def dispatch(text: str, respond: Respond, ask: Callable[[str], Awaitable[str]]) -> None:
-        await daemon.submit_to(tid, text, respond, ask)
-
-    await _converse(reader, writer, dispatch)
+    """Push mode: each message is fire-and-forget (ack'd "queued"); the reply arrives later as a
+    `reply` event over the subscribe channel, tagged by thread. Used by the desktop."""
+    line = await reader.readline()
+    while line:
+        text = line.decode().strip()
+        if text:
+            await daemon.submit_to(tid, text)
+            await _send(writer, "queued")
+        line = await reader.readline()
 
 
 async def _serve_new_thread(
     daemon: Daemon, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
 ) -> None:
-    """Create a thread, send its id back as the first line, then chat on it."""
+    """Create a thread, send its id back as the first line, then chat on it (push mode)."""
     try:
         tid = daemon.create_thread()
     except PoolFull as exc:

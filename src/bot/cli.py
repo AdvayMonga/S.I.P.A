@@ -185,7 +185,7 @@ async def _main() -> None:
 
         pool.after_turn = emit_cost
         pool.on_change = emit_threads
-        pool.distill = distill_thread
+        pool.distill = distill_thread  # on_reply is wired by the daemon (push, tagged by thread)
 
         convo = pool.thread(pool.create("main")).convo  # the default thread, seeded warm below
         await _resume_session(convo, host)

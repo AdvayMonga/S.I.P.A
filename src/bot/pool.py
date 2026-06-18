@@ -1,8 +1,12 @@
 """The thread pool — the switchboard. A flat pool of concurrent chat threads: each thread owns its
-own Conversation and runs turns serially; threads run concurrently (up to MAX_THREADS). One turn at
-a time per thread (its lock), many threads at once. See design/concurrent-chats.md."""
+own Conversation and runs turns serially; threads run concurrently (up to MAX_THREADS).
+
+Turns are decoupled from their origin thread (a `Turn` with a mutable `owner_id`) so a running turn
+can be handed off to another thread mid-flight; its reply lands wherever it's owned at completion.
+A driver coroutine (not a held lock) awaits each turn and delivers. See design/concurrent-chats."""
 
 import asyncio
+from collections import deque
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
@@ -17,11 +21,24 @@ MAX_THREADS = 5  # flat-pool cap — up to 5 chats/tasks at once
 # Runs one turn on a thread's conversation (given the sibling roster) -> the reply text.
 ThreadHandler = Callable[[Conversation, str, "Ask | None", str], Awaitable[str]]
 OnChange = Callable[[list[dict[str, Any]]], Awaitable[None]]  # broadcast the thread snapshot
+OnReply = Callable[[str, str], Awaitable[None]]  # push a turn's reply, tagged by thread id
 Distill = Callable[[Conversation], Awaitable[None]]  # resolve -> persist to memory
 
 
 class PoolFull(Exception):
     """Creating a thread would exceed MAX_THREADS."""
+
+
+@dataclass
+class Turn:
+    """One in-flight turn. `owner_id` is where its reply lands — mutable, so the turn can be handed
+    to another thread mid-flight. `respond` is the legacy request/reply sink (None for push)."""
+
+    task: asyncio.Task[str]
+    owner_id: str
+    start_len: int  # convo length before this turn — the rollback point on stop/hand-off
+    convo: Conversation
+    respond: "Respond | None" = None
 
 
 @dataclass
@@ -32,8 +49,8 @@ class Thread:
     label: str
     convo: Conversation
     status: str = "idle"  # idle | running (the desktop derives "ready" from unread + focus)
-    lock: asyncio.Lock = field(default_factory=asyncio.Lock)  # serial within the thread
-    current: asyncio.Task[str] | None = None  # the in-flight turn, for stop()
+    current: Turn | None = None  # the in-flight turn, if any
+    pending: "deque[tuple[str, Ask | None, Respond | None]]" = field(default_factory=deque)
 
 
 class ThreadPool:
@@ -44,9 +61,10 @@ class ThreadPool:
         self._max = max_threads
         self._threads: dict[str, Thread] = {}
         self._counter = 0
-        self.on_change: OnChange | None = None  # set by cli → broadcast `threads` telemetry
+        self.on_change: OnChange | None = None  # broadcast `threads` telemetry on state change
+        self.on_reply: OnReply | None = None  # push a reply tagged by thread (decoupled delivery)
         self.after_turn: Callable[[], Awaitable[None]] | None = None  # e.g. cost telemetry
-        self.distill: Distill | None = None  # resolve → memory (wired in the Resolve stage)
+        self.distill: Distill | None = None  # resolve → memory
 
     def create(self, label: str = "") -> str:
         if len(self._threads) >= self._max:
@@ -57,7 +75,7 @@ class ThreadPool:
         return tid
 
     def default_thread(self) -> str:
-        """The lowest-numbered thread — the bridge target until the socket carries a thread id.
+        """The lowest-numbered thread — the bridge target for non-addressed sources.
         Creates one if the pool is empty (e.g. after the last thread was resolved)."""
         return min(self._threads, key=int) if self._threads else self.create()
 
@@ -68,8 +86,7 @@ class ThreadPool:
         return [{"id": t.id, "label": t.label, "status": t.status} for t in self._threads.values()]
 
     def _roster(self, tid: str) -> str:
-        """The sibling threads' label + status — injected so a thread knows what else is running
-        (not their contents). Roster awareness, per design/concurrent-chats.md."""
+        """The sibling threads' label + status — injected so a thread knows what else is running."""
         return "\n".join(
             f'- "{t.label or "(new)"}" ({t.status})'
             for t in self._threads.values()
@@ -81,50 +98,79 @@ class ThreadPool:
             await self.on_change(self.snapshot())
 
     async def submit(
-        self, tid: str, text: str, respond: "Respond", ask: "Ask | None" = None
+        self, tid: str, text: str, ask: "Ask | None" = None, respond: "Respond | None" = None
     ) -> None:
-        """Run `text` as a turn on thread `tid`; deliver the reply via `respond`. Serial within the
-        thread (its lock), concurrent across threads."""
+        """Queue `text` on thread `tid`. Serial within the thread (one turn at a time, the rest wait
+        in `pending`); concurrent across threads. The reply is pushed via `on_reply` (tagged by the
+        owning thread) and, if `respond` is given, delivered there too (legacy request/reply)."""
         thread = self._threads.get(tid)
         if thread is None:
-            await respond(f"[error] no such thread {tid}")
+            if respond is not None:
+                await respond(f"[error] no such thread {tid}")
             return
-        async with thread.lock:
-            if not thread.label:
-                thread.label = text[:40]
-            thread.status = "running"
+        if not thread.label:
+            thread.label = text[:40]
+        if thread.current is not None:  # busy → queue (serial within the thread)
+            thread.pending.append((text, ask, respond))
+            return
+        await self._start(thread, text, ask, respond)
+
+    async def _start(
+        self, thread: Thread, text: str, ask: "Ask | None", respond: "Respond | None"
+    ) -> None:
+        start_len = len(thread.convo.messages)
+        roster = self._roster(thread.id)
+        convo = thread.convo
+
+        async def _run() -> str:
+            return await self._handle(convo, text, ask, roster)
+
+        turn = Turn(asyncio.create_task(_run()), thread.id, start_len, convo, respond)
+        thread.current = turn
+        thread.status = "running"
+        await self._changed()
+        asyncio.create_task(self._drive(turn))
+
+    async def _drive(self, turn: Turn) -> None:
+        """Await a turn and deliver its reply to whoever owns it at completion (the owner may have
+        changed via hand-off). Mark that owner idle first (so waiters see consistent state), deliver
+        the reply, then start its next queued message."""
+        try:
+            reply = await turn.task
+        except asyncio.CancelledError:
+            if not turn.task.cancelled():  # the driver itself was cancelled (shutdown) → propagate
+                raise
+            reply = "[stopped]"
+        except Exception as exc:  # one bad turn never kills the pool
+            reply = f"[error] {exc}"
+        owner = self._threads.get(turn.owner_id)
+        if owner is not None and owner.current is turn:
+            owner.current = None
+            owner.status = "idle"
             await self._changed()
-            roster = self._roster(tid)
-
-            async def _run() -> str:
-                return await self._handle(thread.convo, text, ask, roster)
-
-            task = asyncio.create_task(_run())
-            thread.current = task
+        # One delivery path: legacy request/reply if a respond was given (REPL, sipa-client, timer),
+        # else push tagged by the owning thread (desktop) — so no double-delivery.
+        if turn.respond is not None:
             try:
-                reply = await task
-            except asyncio.CancelledError:
-                if not task.cancelled():  # the submit itself was cancelled (shutdown) → propagate
-                    raise
-                reply = "[stopped]"  # stop() cancelled the turn
-            except Exception as exc:  # one bad turn never kills the pool
-                reply = f"[error] {exc}"
-            finally:
-                thread.current = None
-                thread.status = "idle"
-                await self._changed()
-                if self.after_turn is not None:
-                    try:
-                        await self.after_turn()
-                    except Exception:
-                        pass
-        await respond(reply)
+                await turn.respond(reply)
+            except Exception:
+                pass
+        elif self.on_reply is not None:
+            await self.on_reply(turn.owner_id, reply)
+        if self.after_turn is not None:
+            try:
+                await self.after_turn()
+            except Exception:
+                pass
+        if owner is not None and owner.pending and owner.current is None:
+            text, ask, respond = owner.pending.popleft()
+            await self._start(owner, text, ask, respond)
 
     async def stop(self, tid: str) -> None:
         """Cancel a thread's in-flight turn (if any). The turn resolves to '[stopped]', idle."""
         thread = self._threads.get(tid)
         if thread is not None and thread.current is not None:
-            thread.current.cancel()
+            thread.current.task.cancel()
 
     async def resolve(self, tid: str) -> None:
         """Close a thread: stop it, distill it to memory, remove it, free the slot."""
@@ -132,7 +178,7 @@ class ThreadPool:
         if thread is None:
             return
         if thread.current is not None:
-            thread.current.cancel()
+            thread.current.task.cancel()
         if self.distill is not None:
             try:
                 await self.distill(thread.convo)

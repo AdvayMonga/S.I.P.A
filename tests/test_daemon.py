@@ -33,6 +33,19 @@ def _socket_task(sock: str, daemon: Daemon) -> "asyncio.Task[None]":
     return asyncio.create_task(SocketSource(sock, daemon).run(daemon.submit, daemon.register_sink))
 
 
+async def _read_topic(reader: asyncio.StreamReader, topic: str) -> dict:
+    """Read telemetry lines until one with the given topic; return its payload."""
+    while True:
+        line = await asyncio.wait_for(reader.readline(), 1)
+        if not line:
+            raise AssertionError(f"connection closed before topic {topic!r}")
+        text = line.decode()
+        if text.startswith(TELEMETRY_PREFIX):
+            payload = json.loads(text[len(TELEMETRY_PREFIX) :])
+            if payload.get("topic") == topic:
+                return payload
+
+
 def test_socket_round_trip() -> None:
     # AF_UNIX paths are ~104 chars max; pytest's tmp_path is too deep, so use a short /tmp path.
     sock = f"/tmp/sipa_test_{os.getpid()}.sock"
@@ -230,7 +243,7 @@ def test_subscribe_connection_receives_pushes() -> None:
         Path(sock).unlink(missing_ok=True)
 
 
-def test_thread_new_creates_and_routes() -> None:
+def test_thread_new_routes_and_pushes_reply() -> None:
     sock = f"/tmp/sipa_tnew_{os.getpid()}.sock"
 
     async def scenario() -> None:
@@ -242,16 +255,66 @@ def test_thread_new_creates_and_routes() -> None:
         source = _socket_task(sock, daemon)
         await asyncio.sleep(0.05)
 
+        # A subscribe connection receives the pushed reply (fire-and-forget send).
+        sreader, swriter = await asyncio.open_unix_connection(sock)
+        swriter.write(b":subscribe\n")
+        await swriter.drain()
+
         reader, writer = await asyncio.open_unix_connection(sock)
         writer.write(b":thread new\n")  # create a thread; first reply line is its id
         await writer.drain()
         tid = (await asyncio.wait_for(reader.readline(), 1)).decode().strip()
-        assert tid in {t["id"] for t in pool.snapshot()}  # thread exists in the pool
-        writer.write(b"hi\n")  # a message on that thread
+        writer.write(b"hi\n")  # fire-and-forget; daemon acks "queued"
         await writer.drain()
-        reply = await asyncio.wait_for(reader.readline(), 1)
-        assert reply.decode().strip() == "echo:hi"
+        assert (await asyncio.wait_for(reader.readline(), 1)).decode().strip() == "queued"
+
+        reply = await _read_topic(sreader, "reply")  # reply pushed, tagged by thread
+        assert reply["thread"] == tid
+        assert reply["text"] == "echo:hi"
         writer.close()
+        swriter.close()
+        source.cancel()
+
+    try:
+        asyncio.run(scenario())
+    finally:
+        Path(sock).unlink(missing_ok=True)
+
+
+def test_thread_approval_pushes_and_answers() -> None:
+    sock = f"/tmp/sipa_appr_{os.getpid()}.sock"
+
+    async def scenario() -> None:
+        async def handle(text: str, ask: Any = None) -> str:
+            ans = await ask(f"confirm {text}")  # mid-turn approval over the push channel
+            return f"did:{text}:{ans}"
+
+        daemon = Daemon(_pool(handle))
+        source = _socket_task(sock, daemon)
+        await asyncio.sleep(0.05)
+
+        sreader, swriter = await asyncio.open_unix_connection(sock)
+        swriter.write(b":subscribe\n")
+        await swriter.drain()
+
+        reader, writer = await asyncio.open_unix_connection(sock)
+        writer.write(b":thread new\n")
+        await writer.drain()
+        await asyncio.wait_for(reader.readline(), 1)  # the id
+        writer.write(b"delete X\n")
+        await writer.drain()
+
+        appr = await _read_topic(sreader, "approval")  # approval pushed, tagged by thread
+        assert "confirm delete X" in appr["question"]
+        areader, awriter = await asyncio.open_unix_connection(sock)  # answer via :answer
+        awriter.write(f":answer {appr['id']} yes\n".encode())
+        await awriter.drain()
+
+        reply = await _read_topic(sreader, "reply")
+        assert reply["text"] == "did:delete X:yes"
+        writer.close()
+        swriter.close()
+        awriter.close()
         source.cancel()
 
     try:
@@ -298,14 +361,18 @@ def test_thread_bound_routes_to_existing() -> None:
         source = _socket_task(sock, daemon)
         await asyncio.sleep(0.05)
 
+        sreader, swriter = await asyncio.open_unix_connection(sock)
+        swriter.write(b":subscribe\n")
+        await swriter.drain()
+
         reader, writer = await asyncio.open_unix_connection(sock)
-        writer.write(f":thread {tid}\n".encode())  # bind to the existing thread
+        writer.write(f":thread {tid}\nyo\n".encode())  # bind to the existing thread + send
         await writer.drain()
-        writer.write(b"yo\n")
-        await writer.drain()
-        reply = await asyncio.wait_for(reader.readline(), 1)
-        assert reply.decode().strip() == "echo:yo"
+        reply = await _read_topic(sreader, "reply")
+        assert reply["thread"] == tid
+        assert reply["text"] == "echo:yo"
         writer.close()
+        swriter.close()
         source.cancel()
 
     try:

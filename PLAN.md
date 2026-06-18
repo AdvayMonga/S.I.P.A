@@ -383,14 +383,18 @@ the focused one). Model-driven `delegate_background` removed; `delegate` fan-out
 is user-driven only. Full design + decisions: `design/concurrent-chats.md` § Fluid threads.
 
 **Ordered build (small commits):**
-1. **Push delivery** — Turn/driver pool rework; `reply` events tagged by thread; `send`
-   fire-and-forget; desktop routes replies by thread. (The big one.)
-2. **Push approval** — `approval` events + daemon pending-answer registry + `:answer` verb.
+1. **Push delivery** — DONE (2026-06-18). Pool reworked to `Turn` (mutable `owner_id`) + driver
+   coroutine (no held lock); `reply` events pushed tagged by thread (`pool.on_reply`); socket
+   `:thread` path is fire-and-forget (acks "queued"); legacy request/reply kept for REPL/sipa-client/
+   timer. Rust `send` fire-and-forget; `threads.tsx` routes pushed replies by thread.
+2. **Push approval** — DONE (2026-06-18, with step 1). `approval` events tagged by thread + daemon
+   pending-answer registry (`_push_ask`/`answer`) + `:answer <id> <text>` verb + Rust
+   `answer_approval`; approval card routed per thread in `threads.tsx`. Rust approval-loop removed.
 3. **Remove model `delegate_background`** (keep `delegate`).
 4. **Hand-off** — `background_thread` command + `pool.background`; desktop "→ background" button.
 5. **Merge** — `merge_thread` command + `pool.merge`; desktop "Merge" button.
 
-Currently on **step 1 (push delivery)**.
+Currently on **step 3 (remove model `delegate_background`)**.
 
 ## Later (not started)
 
