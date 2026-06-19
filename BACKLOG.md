@@ -125,3 +125,18 @@ the query; this is the first refinement once it's in use.
   cancel / enable-toggle / add-task actions; needs new socket control verbs + store mutators
   (`scheduler` server already has `cancel_task`; `enabled` toggle + UI add are new). The model can
   already do all of this via chat, so this is convenience, not capability.
+
+## From research flow (v1 is a playbook over existing tools — see design/research.md)
+
+- **Adversarial claim-verification (deep research)** — USER-REQUESTED for later. Before a deep-research
+  note lands, spawn skeptics to try to refute each finding; keep only what survives (the
+  `deep-research` skill's pattern). The strong anti-hallucination upgrade over fetch-before-cite.
+- **Code-side citation validation** — the better grounding mechanism than prompt-trust: after the note
+  is drafted, validate every footnote URL was actually `web_fetch`ed this turn. Needs to see both the
+  fetch history and the note → belongs in the **core** agent loop, not a leaf tool. Build when a
+  hallucinated cite first appears.
+- **Schema-enforcing `vault_write_research_note` tool** — v1 trusts the playbook for the note schema.
+  If formatting drifts in practice, add an obsidian-server tool that enforces frontmatter/header/
+  footer/sources/dedup-append in code.
+- **Multi-agent fan-out per entity** — for large multi-entity research, spawn a sub-agent per entity
+  in parallel (reuses the existing `delegate` fan-out), then synthesize into one note or split notes.

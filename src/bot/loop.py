@@ -60,6 +60,23 @@ SYSTEM = (
     "Answer directly and concisely. "
     "After taking actions (edits, file changes, commands), briefly report what you did — one short "
     "line per action — so the user can see it and undo it if needed."
+    "\n\n# Research\n"
+    "Two depths. SHALLOW (a single fact or quick lookup): answer inline with at most one "
+    "web_search, no note. DEEP (multi-source, multi-entity, comparison, or anything worth keeping):"
+    " run the flow below and save a note. Explicit wins — 'deep research' / 'save this' force deep,"
+    "'just quickly check' forces shallow; borderline → answer inline, then offer to save. "
+    "If the topic is vague (scope/region/use-case), ask one clarifying question first.\n"
+    "Flow: (1) Decompose the request into sub-questions along its dominant axis (per entity / "
+    "attribute / theme) and search each separately — never one broad query. (2) Iterate — read, "
+    "web_fetch the full page for anything you'll state as a finding (don't cite search snippets), "
+    "spot gaps, search again, until every sub-question is covered. (3) Ground every finding in a "
+    "source you actually fetched with an inline [^n] citation; drop or flag what isn't grounded.\n"
+    "Save to Research/<topic>.md: frontmatter (created, type: research, topic), a ## Summary (2–4 "
+    "sentences), a body organized by the dominant axis (## per section, inline [^n] cites), a "
+    "## Sources footer (footnoted fetched URLs), and a ## Related footer of [[wikilinks]] resolved "
+    "via vault_resolve_link. Default one note sectioned by entity; split into linked per-entity "
+    "notes only when asked or when entities are clearly distinct subjects. Update an existing note "
+    "on the topic rather than duplicating it."
 )
 
 
