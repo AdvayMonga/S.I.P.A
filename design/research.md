@@ -35,6 +35,16 @@ added only if formatting drifts.
 3. **Ground** — every finding cites a source actually fetched, inline `[^n]`; drop or flag anything
    ungroundable. This is the anti-hallucination mechanism. *(Code-side enforcement — validate
    footnote URLs ⊆ fetched URLs — belongs in the core, deferred to `BACKLOG.md`.)*
+4. **Adversarially verify** (`verify_claims` tool, `src/bot/verify.py`) — before saving, the model
+   passes its key factual claims to `verify_claims`, which fans out **independent skeptic
+   sub-agents** (reusing `run_subagents`) that each try to *refute* the claim via web search. Each
+   sees **only the claim, never the reasoning** that produced it — that independence is the whole
+   point (a model checking its own findings rubber-stamps them). `VOTERS=2` per claim; aggregation
+   is **skeptical**: `refuted` if any skeptic refutes, `supported` only if all confirm, else
+   `uncertain`. The model drops `refuted`, marks `uncertain` as unverified, keeps `supported`.
+   Offered only on top-level turns (alongside `delegate`), so a skeptic — which runs with
+   `allow_delegate=False` — can't recurse into more verification. Cost scales with claims × voters;
+   `VOTERS` is the dial.
 
 ## Note schema — fixed envelope, adaptive body
 
@@ -68,8 +78,7 @@ background/swap/stop for free (no delegation in v1).
 
 ## Deferred (see `BACKLOG.md`)
 
-- **Adversarial claim-verification** for deep research — spawn skeptics to refute each finding before
-  it lands (the `deep-research` skill's pattern). User-requested for later.
+- ~~**Adversarial claim-verification**~~ — DONE (`verify_claims`, step 4 above).
 - **Code-side citation validation** in the core (footnote URLs ⊆ fetched-this-turn URLs) — the
   stronger grounding mechanism; first hardening if a hallucinated cite ever appears.
 - **Schema-enforcing `vault_write_research_note` tool** — only if the model's formatting drifts.

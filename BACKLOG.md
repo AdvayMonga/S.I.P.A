@@ -128,9 +128,9 @@ the query; this is the first refinement once it's in use.
 
 ## From research flow (v1 is a playbook over existing tools — see design/research.md)
 
-- **Adversarial claim-verification (deep research)** — USER-REQUESTED for later. Before a deep-research
-  note lands, spawn skeptics to try to refute each finding; keep only what survives (the
-  `deep-research` skill's pattern). The strong anti-hallucination upgrade over fetch-before-cite.
+- ~~**Adversarial claim-verification (deep research)**~~ — DONE 2026-06-18 (`verify_claims` tool +
+  `src/bot/verify.py`): independent skeptic sub-agents refute each key claim before the note lands;
+  skeptical aggregation (refuted if any, supported only if unanimous). See DECISIONS + design/research.md.
 - **Code-side citation validation** — the better grounding mechanism than prompt-trust: after the note
   is drafted, validate every footnote URL was actually `web_fetch`ed this turn. Needs to see both the
   fetch history and the note → belongs in the **core** agent loop, not a leaf tool. Build when a

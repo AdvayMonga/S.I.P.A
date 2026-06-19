@@ -14,6 +14,7 @@ from .host import MCPHost
 from .provider import ModelProvider
 from .query import rewrite_query
 from .subagent import DELEGATE_TOOL, run_subagents
+from .verify import VERIFY_TOOL, verify_claims
 
 _log = logging.getLogger("sipa.loop")
 
@@ -70,7 +71,9 @@ SYSTEM = (
     "attribute / theme) and search each separately — never one broad query. (2) Iterate — read, "
     "web_fetch the full page for anything you'll state as a finding (don't cite search snippets), "
     "spot gaps, search again, until every sub-question is covered. (3) Ground every finding in a "
-    "source you actually fetched with an inline [^n] citation; drop or flag what isn't grounded.\n"
+    "source you actually fetched with an inline [^n] citation; drop or flag what isn't grounded. "
+    "(4) Before saving, call verify_claims on your key factual claims — drop the ones it returns "
+    "'refuted', mark 'uncertain' ones as unverified in the note, keep 'supported'.\n"
     "Save to Research/<topic>.md: frontmatter (created, type: research, topic), a ## Summary (2–4 "
     "sentences), a body organized by the dominant axis (## per section, inline [^n] cites), a "
     "## Sources footer (footnoted fetched URLs), and a ## Related footer of [[wikilinks]] resolved "
@@ -112,7 +115,7 @@ async def run_turn(
 
     tools = host.tools_for_model()
     if allow_delegate:
-        tools = [*tools, DELEGATE_TOOL]
+        tools = [*tools, DELEGATE_TOOL, VERIFY_TOOL]
     start_len = len(convo.messages)  # roll back to here if the turn is stopped (keeps alternation)
     convo.messages.append({"role": "user", "content": user_message})
     try:
@@ -157,6 +160,9 @@ async def _run_loop(
             if block.name == "delegate":
                 results = await run_subagents(args.get("tasks", []), provider, host)
                 text, is_error = json.dumps(results), False
+            elif block.name == "verify_claims":
+                verdicts = await verify_claims(args.get("claims", []), provider, host)
+                text, is_error = json.dumps(verdicts), False
             elif block.name in APPROVAL_REQUIRED and not (
                 approver is not None and await approver.approve(block.name, args, ask)
             ):

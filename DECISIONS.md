@@ -362,3 +362,24 @@ earlier mitigation (prepend `summary[-500:]` to the query) was empty before the 
 - **Retrieval-only, degrade to raw.** The rewrite is never shown and never appended to `messages`,
   so a bad rewrite costs a little recall, never conversation integrity. Provider error / empty
   rewrite → raw message. Trivial turns skip it (they don't retrieve).
+
+## 2026-06-18 — Adversarial claim-verification for deep research (`verify_claims`)
+
+**Why code, not a playbook line.** Verification is the one research step where prompt-trust is
+self-defeating: a model checking its own findings is biased to confirm them. The value is
+*independence* + *adversarial framing*, and those can't be left to the model to remember — they're
+locked in code. `src/bot/verify.py` + a `verify_claims` tool.
+
+**Decisions.**
+- **Reuse the sub-agent fan-out.** Each skeptic is an isolated `run_subagents` loop with full tools
+  (incl. web) — fresh context that sees only the claim, never the reasoning that produced it. No new
+  fan-out machinery; verification is just a specialized use of it.
+- **Skeptical aggregation.** `VOTERS=2` independent skeptics per claim. `refuted` if *any* refutes,
+  `supported` only if *all* confirm, else `uncertain`. A missing/garbled verdict line parses to
+  `uncertain`. Research notes should err toward flagging, not asserting — false-but-confident is the
+  failure we're buying against.
+- **Top-level only.** Offered alongside `delegate` (only when `allow_delegate`), so a skeptic
+  sub-agent (which runs `allow_delegate=False`) can't recurse into more verification. Same 1-level
+  rule as delegation.
+- **Cost is real and dialed by `VOTERS`.** claims × voters full sub-agent research loops — opt-in
+  deep research only, and the playbook verifies *key* claims, not every sentence.
