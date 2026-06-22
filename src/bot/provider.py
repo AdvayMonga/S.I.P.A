@@ -11,9 +11,26 @@ from .config import Settings
 _cost_log = logging.getLogger("sipa.cost")
 
 
+CACHE_WRITE_MULT = 1.25  # ephemeral (5m) cache writes bill at 1.25x base input
+CACHE_READ_MULT = 0.10  # cache reads bill at 0.1x base input — the savings
+
+
 def cost_usd(input_tokens: int, output_tokens: int, in_price: float, out_price: float) -> float:
     """Dollar cost of a token count given per-million-token prices."""
     return (input_tokens * in_price + output_tokens * out_price) / 1_000_000
+
+
+def session_cost_usd(
+    in_tokens: int,
+    out_tokens: int,
+    cache_read: int,
+    cache_write: int,
+    in_price: float,
+    out_price: float,
+) -> float:
+    """Real dollar cost incl. cache tiers: uncached input full, writes 1.25x, reads 0.1x."""
+    billed_input = in_tokens + cache_write * CACHE_WRITE_MULT + cache_read * CACHE_READ_MULT
+    return (billed_input * in_price + out_tokens * out_price) / 1_000_000
 
 
 def _cache_tools(tools: list[Any]) -> list[Any]:
@@ -75,7 +92,7 @@ class AnthropicProvider:
         self._out_tokens += usage.output_tokens
         self._cache_read += read
         self._cache_write += write
-        session = cost_usd(self._in_tokens, self._out_tokens, self._in_price, self._out_price)
+        session = self._session_cost()
         _cost_log.info(
             "tokens in=%d out=%d cache(r=%d w=%d) | session %d/%d ≈ $%.4f",
             usage.input_tokens,
@@ -88,8 +105,17 @@ class AnthropicProvider:
         )
         return message
 
+    def _session_cost(self) -> float:
+        return session_cost_usd(
+            self._in_tokens,
+            self._out_tokens,
+            self._cache_read,
+            self._cache_write,
+            self._in_price,
+            self._out_price,
+        )
+
     def usage(self) -> dict[str, Any]:
-        session = cost_usd(self._in_tokens, self._out_tokens, self._in_price, self._out_price)
         return {
             "in_tokens": self._in_tokens,
             "out_tokens": self._out_tokens,
@@ -97,7 +123,7 @@ class AnthropicProvider:
             "last_out": self._last_out,
             "cache_read": self._cache_read,
             "cache_write": self._cache_write,
-            "cost_usd": session,
+            "cost_usd": self._session_cost(),
         }
 
 

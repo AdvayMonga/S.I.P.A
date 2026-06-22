@@ -5,6 +5,8 @@ type CostSnapshot = {
   out_tokens: number;
   last_in: number;
   last_out: number;
+  cache_read: number;
+  cache_write: number;
   cost_usd: number;
 };
 
@@ -25,6 +27,10 @@ export function CostModule() {
         <div>
           <dt>in</dt>
           <dd>{fmt(c.in_tokens)}</dd>
+        </div>
+        <div>
+          <dt>cached</dt>
+          <dd>{fmt(c.cache_read)}</dd>
         </div>
         <div>
           <dt>out</dt>
