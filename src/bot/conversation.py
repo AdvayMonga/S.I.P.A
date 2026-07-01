@@ -11,6 +11,11 @@ from .provider import ModelProvider
 
 COMPACT_AFTER_TURNS = 12  # real user turns before we compact
 KEEP_RECENT_TURNS = 4  # turns kept verbatim after compaction
+KEEP_FULL_RESULTS_TURNS = 2  # of those, how many keep heavy tool-result bodies (older ones stub)
+
+# Stub for a demoted (cold) tool result. The assistant's tool_use call is kept, so the model still
+# knows what it ran and can re-call; only the bulky body is dropped — the summary carries the gist.
+_ELIDED_RESULT = "[earlier tool result elided to bound the window — see the running summary]"
 
 _SUMMARIZE_SYSTEM = (
     "You maintain a running summary of a conversation between a user and their personal assistant. "
@@ -43,8 +48,27 @@ async def maybe_compact(convo: Conversation, provider: ModelProvider) -> bool:
     cut = turns[-KEEP_RECENT_TURNS]  # keep a clean window starting at a real user turn
     older, recent = convo.messages[:cut], convo.messages[cut:]
     convo.summary = await _summarize(provider, convo.summary, older)
+    _demote_old_tool_results(recent)  # stub heavy results in the retained-but-older turns
     convo.messages = recent
     return True
+
+
+def _demote_old_tool_results(messages: list[Any]) -> None:
+    """In-place: stub tool_result bodies older than the last KEEP_FULL_RESULTS_TURNS turns. Keeps
+    conversational text and every block's structure (ids/is_error) intact — only bulky result bodies
+    shrink. Runs only at the compaction boundary, where messages are rebuilt anyway, so it never
+    thrashes the prefix cache (rewriting a resident message would otherwise invalidate it)."""
+    turns = _real_user_turns(messages)
+    if len(turns) <= KEEP_FULL_RESULTS_TURNS:
+        return
+    boundary = turns[-KEEP_FULL_RESULTS_TURNS]  # everything before this turn is cold
+    for m in messages[:boundary]:
+        content = m["content"]
+        if not isinstance(content, list):
+            continue
+        for block in content:
+            if isinstance(block, dict) and block.get("type") == "tool_result":
+                block["content"] = _ELIDED_RESULT
 
 
 async def finalize_summary(convo: Conversation, provider: ModelProvider) -> str:

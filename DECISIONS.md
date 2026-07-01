@@ -447,3 +447,23 @@ sources ("spot gaps, search again"), so stripping them would hurt recall — thi
 *shaper*, not a link stripper. Applied at the server boundary (web_fetch), so the backend stays a
 faithful transport (test_web asserts the backend still returns raw content). Pure + idempotent, so
 shaped fetches don't bust the prefix cache.
+
+## 2026-07-01 — Batched tool-result demotion at the compaction boundary
+
+Tool results ride in the live window until compaction. Prompt caching already made *re-reads* cheap
+(0.1x), so the remaining wins from evicting them are window headroom + less stale noise, not dollars
+— and demotion has a real cost: rewriting a resident message busts the prefix cache from that point.
+
+**So demote only where it's free.** `_demote_old_tool_results` runs inside `maybe_compact`, which
+already rebuilds `convo.messages` wholesale — the cache is invalidated at that instant regardless, so
+stubbing costs nothing extra and shrinks the window for every turn until the next compaction. Doing
+it per-turn instead would thrash the cache (net-negative), so we don't.
+
+**Two-tier retention.** Of the `KEEP_RECENT_TURNS` (4) kept verbatim, the last `KEEP_FULL_RESULTS_TURNS`
+(2) keep full tool-result bodies (hot/warm); older retained turns keep their conversational text but
+their result bodies stub to `_ELIDED_RESULT`. The assistant's tool_use call and every block's
+id/is_error are preserved, so pairing stays API-valid and the model still knows what it ran (and can
+re-call). The prose summary already carries the gist of anything dropped.
+
+**Not the full lifecycle yet.** The BACKLOG "tool-result → vault" vision (cold results written to the
+durable store, recalled via §5.9) is still future; this is the in-window batched half of it.

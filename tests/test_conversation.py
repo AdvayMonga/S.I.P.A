@@ -5,9 +5,11 @@ from typing import Any
 from anthropic.types import TextBlock
 
 from bot.conversation import (
+    _ELIDED_RESULT,
     COMPACT_AFTER_TURNS,
     KEEP_RECENT_TURNS,
     Conversation,
+    _demote_old_tool_results,
     _render,
     finalize_summary,
     maybe_compact,
@@ -97,6 +99,29 @@ def test_finalize_summary_no_messages_keeps_prior() -> None:
     out = asyncio.run(finalize_summary(convo, provider))
     assert out == "prior"
     assert provider.calls == 0  # no LLM call when there's nothing to fold
+
+
+def test_demote_stubs_cold_results_keeps_recent() -> None:
+    def tr(x: str) -> dict:
+        block = {"type": "tool_result", "tool_use_id": x, "content": x}
+        return {"role": "user", "content": [block]}
+
+    msgs = [
+        _user("q0"), _assistant("a0"), tr("t0"),  # cold turn → result stubbed
+        _user("q1"), _assistant("a1"), tr("t1"),  # within last 2 turns → kept full
+        _user("q2"), _assistant("a2"), tr("t2"),
+    ]
+    _demote_old_tool_results(msgs)  # KEEP_FULL_RESULTS_TURNS=2 → keep results from q1, q2
+    assert msgs[2]["content"][0]["content"] == _ELIDED_RESULT  # t0 demoted
+    assert msgs[2]["content"][0]["tool_use_id"] == "t0"  # structure/id preserved (pairing-safe)
+    assert msgs[5]["content"][0]["content"] == "t1"  # recent kept full
+    assert msgs[8]["content"][0]["content"] == "t2"
+
+
+def test_demote_noop_when_few_turns() -> None:
+    msgs = [_user("q0"), {"role": "user", "content": [{"type": "tool_result", "content": "keep"}]}]
+    _demote_old_tool_results(msgs)  # only one real user turn → nothing is cold
+    assert msgs[1]["content"][0]["content"] == "keep"
 
 
 def test_render_flattens_tools() -> None:
