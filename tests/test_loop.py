@@ -5,7 +5,15 @@ from typing import Any
 from anthropic.types import TextBlock, ToolUseBlock
 
 from bot.conversation import Conversation
-from bot.loop import MAX_ITERATIONS, Approver, run_turn
+from bot.loop import (
+    MAX_ITERATIONS,
+    TOOL_RESULT_CHAR_CAP,
+    TOOL_RESULT_HEAD,
+    TOOL_RESULT_TAIL,
+    Approver,
+    _cap,
+    run_turn,
+)
 
 
 class FakeHost:
@@ -74,6 +82,31 @@ def test_normal_turn_does_not_trip_cap() -> None:
     provider = OneShotProvider()
     reply = asyncio.run(run_turn(Conversation(), "hi", provider, FakeHost()))  # type: ignore[arg-type]
     assert reply == "done"
+
+
+def test_cap_leaves_normal_output_untouched() -> None:
+    small = "x" * TOOL_RESULT_CHAR_CAP  # exactly at the cap → not trimmed
+    assert _cap(small) is small
+
+
+def test_cap_trims_oversized_to_head_and_tail() -> None:
+    big = "H" * TOOL_RESULT_HEAD + "M" * 20_000 + "T" * TOOL_RESULT_TAIL
+    out = _cap(big)
+    assert out.startswith("H" * TOOL_RESULT_HEAD)
+    assert out.endswith("T" * TOOL_RESULT_TAIL)
+    assert "elided to save context" in out
+    assert len(out) < len(big)
+
+
+def test_cap_is_idempotent() -> None:
+    big = "z" * (TOOL_RESULT_CHAR_CAP + 100_000)
+    once = _cap(big)
+    assert _cap(once) is once  # already trimmed below the cap → stable, won't bust the cache
+
+
+def test_cap_passes_through_non_strings() -> None:
+    blocks = [{"type": "image", "source": {}}]
+    assert _cap(blocks) is blocks  # multimodal lists untouched
 
 
 def test_approval_denied_when_unattended() -> None:

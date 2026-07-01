@@ -21,6 +21,26 @@ _log = logging.getLogger("sipa.loop")
 WARN_ITERATIONS = 15  # soft: log and keep going — don't interrupt a legitimately long task
 MAX_ITERATIONS = 40  # hard backstop: stop a runaway turn (tool calls that never converge)
 
+# Bound a pathologically large tool result to head+tail so one blob can't flood the window (hurting
+# both attention and the context budget). Generous — only true monsters trip it; normal outputs and
+# typical web_fetch pages pass through. Deterministic + idempotent so it won't bust the cache.
+TOOL_RESULT_CHAR_CAP = 48_000  # ~12k tokens
+TOOL_RESULT_HEAD = 36_000
+TOOL_RESULT_TAIL = 8_000
+
+
+def _cap(content: Any) -> Any:
+    """Trim an oversized tool result to head+tail with an elision marker. Strings only; image/
+    multimodal lists pass through untouched. Pure function of its input (no clock/randomness)."""
+    if not isinstance(content, str) or len(content) <= TOOL_RESULT_CHAR_CAP:
+        return content
+    elided = len(content) - TOOL_RESULT_HEAD - TOOL_RESULT_TAIL
+    return (
+        f"{content[:TOOL_RESULT_HEAD]}"
+        f"\n\n[… {elided} characters elided to save context …]\n\n"
+        f"{content[-TOOL_RESULT_TAIL:]}"
+    )
+
 # Tools whose effects are irreversible/external — gated behind user approval. Reversible tools
 # (vault writes auto-commit to git, reads, search) run freely. `run_shell` is the first member.
 APPROVAL_REQUIRED: set[str] = {"run_shell"}
@@ -169,11 +189,14 @@ async def _run_loop(
                 text, is_error = "[denied — needs your approval in an interactive session]", True
             else:
                 text, is_error = await host.call_tool(block.name, args)
+            capped = _cap(text)
+            if capped is not text:
+                _log.info("capped %s result: %d -> %d chars", block.name, len(text), len(capped))
             tool_results.append(
                 {
                     "type": "tool_result",
                     "tool_use_id": block.id,
-                    "content": text,
+                    "content": capped,
                     "is_error": is_error,
                 }
             )

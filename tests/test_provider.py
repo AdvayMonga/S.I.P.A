@@ -7,6 +7,7 @@ from bot.config import Settings
 from bot.provider import (
     AnthropicProvider,
     LocalProvider,
+    _cache_messages,
     _cache_tools,
     cost_usd,
     make_provider,
@@ -42,6 +43,28 @@ def test_cache_tools_marks_last_only_without_mutating() -> None:
 
 def test_cache_tools_empty_is_noop() -> None:
     assert _cache_tools([]) == []
+
+
+def test_cache_messages_wraps_string_content_without_mutating() -> None:
+    messages = [{"role": "user", "content": "hello"}]
+    out = _cache_messages(messages)
+    assert out[-1]["content"] == [
+        {"type": "text", "text": "hello", "cache_control": {"type": "ephemeral"}}
+    ]
+    assert messages == [{"role": "user", "content": "hello"}]  # caller's list untouched
+
+
+def test_cache_messages_marks_last_block_of_tool_result_list() -> None:
+    tr = {"type": "tool_result", "tool_use_id": "t1", "content": "out", "is_error": False}
+    messages = [{"role": "user", "content": "hi"}, {"role": "user", "content": [tr]}]
+    out = _cache_messages(messages)
+    assert out[-1]["content"][-1]["cache_control"] == {"type": "ephemeral"}
+    assert out[0]["content"] == "hi"  # earlier messages untouched (string stays a string)
+    assert "cache_control" not in tr  # original block untouched
+
+
+def test_cache_messages_empty_is_noop() -> None:
+    assert _cache_messages([]) == []
 
 
 def test_cost_usd_opus_4_8_rates() -> None:

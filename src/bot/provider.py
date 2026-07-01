@@ -41,6 +41,23 @@ def _cache_tools(tools: list[Any]) -> list[Any]:
     return [*tools[:-1], {**tools[-1], "cache_control": {"type": "ephemeral"}}]
 
 
+def _cache_messages(messages: list[Any]) -> list[Any]:
+    """Mark the last block of the last message with an ephemeral breakpoint so the whole prior
+    prefix (tools + system + history) re-reads at 0.1x next call. The list only grows by append, so
+    within a turn the prefix is byte-stable and the cache hits — collapsing the tool-loop's
+    quadratic re-bill to ~linear. Copy, don't mutate. generate's last message is always a user
+    message (the API requires it), so content is a str or a list of content-block dicts."""
+    if not messages:
+        return messages
+    last = messages[-1]
+    content = last["content"]
+    blocks = [{"type": "text", "text": content}] if isinstance(content, str) else list(content)
+    if not blocks:
+        return messages
+    blocks = [*blocks[:-1], {**blocks[-1], "cache_control": {"type": "ephemeral"}}]
+    return [*messages[:-1], {**last, "content": blocks}]
+
+
 class ModelProvider(Protocol):
     """One call: system + history + tools -> a model response."""
 
@@ -78,7 +95,7 @@ class AnthropicProvider:
             model=self._model,
             max_tokens=self._max_tokens,
             system=system,
-            messages=messages,
+            messages=_cache_messages(messages),
             tools=_cache_tools(tools),
             **extra,
         )

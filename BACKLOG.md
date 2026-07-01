@@ -140,3 +140,15 @@ the query; this is the first refinement once it's in use.
   footer/sources/dedup-append in code.
 - **Multi-agent fan-out per entity** — for large multi-entity research, spawn a sub-agent per entity
   in parallel (reuses the existing `delegate` fan-out), then synthesize into one note or split notes.
+
+## From tool-loop token work (2026-06-30 — see DECISIONS)
+
+- **Split static system from volatile retrieval for across-turn caching** — today `assemble_context`
+  bakes retrieval into `system`, so the cached prefix invalidates every turn (only within-turn caches).
+  Keep the static SYSTEM playbook in `system` and move retrieved memory/vault to the tail (a message or
+  a second breakpoint) so `[tools][static system]` survives across turns at 0.1x. The bigger cost lever.
+- **Tune the tool-result cap** — `TOOL_RESULT_CHAR_CAP` (48k) is a first guess; watch the "capped …"
+  log to see what actually trips it and adjust. Head/tail split too.
+- **Tool-result lifecycle → vault (the real "layer")** — hot=full, warm=cached, cold=demoted-to-stub
+  and written to the durable store, recalled via §5.9 auto-assembly. Context window as L1 cache, vault
+  as RAM. Strictly better than placeholder-eviction (nothing lost). Scope deliberately post-memory.

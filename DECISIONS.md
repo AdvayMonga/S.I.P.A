@@ -383,3 +383,30 @@ locked in code. `src/bot/verify.py` + a `verify_claims` tool.
   rule as delegation.
 - **Cost is real and dialed by `VOTERS`.** claims × voters full sub-agent research loops — opt-in
   deep research only, and the playbook verifies *key* claims, not every sentence.
+
+## 2026-06-30 — Tame the tool-loop token compounding (prefix cache + result cap)
+
+The tool loop re-sends the whole growing `messages` on every iteration, so a tool-heavy turn's
+input cost is quadratic (iter N re-reads all prior results); those results also re-bill each turn
+until compaction at 12. Two coordinated changes on the same call path.
+
+**Decisions.**
+- **Cache the message prefix, not just tools** (`_cache_messages`, provider.py). A rolling
+  ephemeral breakpoint on the last block of the last message caches everything before it (tools +
+  system + history) at 0.1x reads. The list only grows by append, so within a turn the prefix is
+  byte-stable → the tool-loop's quadratic re-bill collapses to ~linear. Copy, never mutate. Safe:
+  generate's last message is always a user message, so content is a str or a list of block dicts —
+  never SDK response objects.
+- **Cap only pathological tool results** (`_cap`, loop.py). Head+tail with an elision marker, at a
+  generous ~48k chars (~12k tokens) so normal outputs and typical web_fetch pages pass through
+  untouched — this is a safety valve against one blob flooding the window (attention + budget), not
+  routine trimming. Applied once at append-time to all result branches (host/delegate/verify).
+- **The two don't interfere by design.** `_cap` is a pure, idempotent function of its input and
+  runs before the result enters `messages`, so the stored bytes are final and stable — exactly what
+  the prefix cache needs. A non-deterministic cap (clock/re-cap) would bust the cache every call;
+  this one can't.
+- **Across-turn caching is still limited by the per-turn system prompt.** `assemble_context`
+  injects retrieval into `system`, which changes each turn → invalidates the cached prefix from
+  `system` onward across turns (within-turn is fine, and that's the dominant pain). Splitting the
+  static SYSTEM playbook from the volatile retrieved context (so `[tools][static system]` caches
+  across turns) is the bigger across-turn win — deferred to BACKLOG.
