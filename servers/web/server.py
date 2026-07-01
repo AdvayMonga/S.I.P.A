@@ -17,8 +17,11 @@ _backend = TavilyBackend(os.environ["TAVILY_API_KEY"])
 @mcp.tool()
 def web_search(query: str, max_results: int = 5) -> str:
     """Search the web for current or external information. Returns JSON hits — each with title, url,
-    an extracted snippet, and score — ready to read, cite, and write into a note."""
-    return json.dumps([asdict(r) for r in _backend.search(query, max_results=max_results)])
+    and an extracted snippet, ranked best-first — ready to read, cite, and write into a note."""
+    # Backend's relevance score is dropped: unused by any consumer, and a raw float misleads the
+    # model (results are already ranked). See DECISIONS 2026-07-01.
+    hits = _backend.search(query, max_results=max_results)
+    return json.dumps([{"title": r.title, "url": r.url, "content": r.content} for r in hits])
 
 
 @mcp.tool()

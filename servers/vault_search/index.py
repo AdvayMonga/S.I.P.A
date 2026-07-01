@@ -94,10 +94,12 @@ class SemanticIndex:
                     "path": by_id[cid][1],
                     "heading": by_id[cid][2],
                     "snippet": _snippet(by_id[cid][3]),
-                    "score": round(score, 4),  # RRF rank-fusion (ordering)
+                    # RRF score is dropped from the payload (rank-fusion, ~0.03 max — misleading to
+                    # the model; ordering is already applied above). `sim` stays: context.py gates
+                    # the auto-assembled slice on it. See DECISIONS 2026-07-01.
                     "sim": round(vector_sims.get(cid, 0.0), 4),  # raw vector cosine (relevance)
                 }
-                for cid, score in scored[:k]
+                for cid, _score in scored[:k]
             ]
         finally:
             con.close()

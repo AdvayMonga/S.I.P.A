@@ -73,4 +73,6 @@ def search(db_path: str | Path, query: str, limit: int = 20) -> list[dict[str, A
         ).fetchall()
     finally:
         con.close()
-    return [{"path": path, "snippet": snip, "score": round(score, 3)} for path, snip, score in rows]
+    # bm25 score is dropped: unused, and a raw (negative) score misleads the model. Rows are already
+    # ORDER BY bm25, so best-first ordering is preserved. See DECISIONS 2026-07-01.
+    return [{"path": path, "snippet": snip} for path, snip, _score in rows]

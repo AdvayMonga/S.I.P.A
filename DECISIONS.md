@@ -410,3 +410,27 @@ until compaction at 12. Two coordinated changes on the same call path.
   `system` onward across turns (within-turn is fine, and that's the dominant pain). Splitting the
   static SYSTEM playbook from the volatile retrieved context (so `[tools][static system]` caches
   across turns) is the bigger across-turn win — deferred to BACKLOG.
+
+## 2026-07-01 — Prune model-useless relevance scores from search tool outputs
+
+Tool results ride in the window (and re-bill) every turn; raw relevance scores in search hits are
+both dead weight and *actively misleading* — RRF maxes ~0.03, bm25 is negative, so a model reading
+them as "low relevance" is wrong. Dropped the ones no consumer reads.
+
+**Dropped (zero consumers; ordering already applied before serialization).**
+- vault_search hit `score` (RRF rank-fusion) — index.py `search`.
+- web_search hit `score` (backend relevance) — web/server.py serialization (backend dataclass keeps
+  it; we just stop shipping it).
+- obsidian `vault_search_text` (BM25 path) hit `score` — obsidian/index.py `search`.
+
+**Kept on purpose — the thing that could bite us.** `memory_recall` hit `score` and `semantic_search`
+hit `sim` still reach the model, because **context.py auto-assembly gates on them**
+(`context.py:73` memory `score` ≥ MEM_MIN_SCORE, `context.py:81` vault `sim` ≥ VAULT_MIN_SCORE).
+Those two are the *same* MCP tool outputs the model sees, so stripping them model-side would need a
+model-facing prune layer (loop.py coupled to tool schemas) — deliberately not done. They remain
+model-visible and mildly misleading (bge cosine baseline runs high, so 0.55 is a *miss* but reads as
+"medium"). Future candidate: strip model-side while keeping the internal gate.
+
+**If a future feature needs a dropped score back:** it's still computed in each producer — re-add it
+to the returned dict (vault/obsidian) or the serialization (web). Nothing downstream sorts on the
+emitted field; sorting happens before the dict is built in all three.
