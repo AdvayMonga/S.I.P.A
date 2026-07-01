@@ -1,6 +1,6 @@
 from typing import Any
 
-from servers.web.backend import FetchResult, SearchResult, TavilyBackend
+from servers.web.backend import FetchResult, SearchResult, TavilyBackend, clean_markdown
 
 
 class FakeTavily:
@@ -54,3 +54,20 @@ def test_fetch_normalizes() -> None:
 
 def test_fetch_empty() -> None:
     assert _backend().fetch(["https://nope"]) == []
+
+
+def test_clean_markdown_strips_images_and_whitespace() -> None:
+    raw = "# Title\n\n\n\n![logo](https://cdn/x.png)\n\ntext here   \n\n\n\nmore"
+    out = clean_markdown(raw)
+    assert "https://cdn" not in out  # image URL dropped
+    assert "logo" in out  # alt text kept
+    assert "\n\n\n" not in out  # blank-line runs collapsed
+    assert "   \n" not in out  # trailing whitespace stripped
+    assert out.endswith("more")
+
+
+def test_clean_markdown_keeps_link_targets_and_is_idempotent() -> None:
+    raw = "see [the source](https://ref/page) for details"
+    once = clean_markdown(raw)
+    assert "https://ref/page" in once  # research follows inline links → keep targets
+    assert clean_markdown(once) == once  # idempotent → won't bust the prefix cache

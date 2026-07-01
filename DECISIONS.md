@@ -434,3 +434,16 @@ model-visible and mildly misleading (bge cosine baseline runs high, so 0.55 is a
 **If a future feature needs a dropped score back:** it's still computed in each producer — re-add it
 to the returned dict (vault/obsidian) or the serialization (web). Nothing downstream sorts on the
 emitted field; sorting happens before the dict is built in all three.
+
+## 2026-07-01 — Shape web_fetch output to prose before it enters the window
+
+`web_fetch` returns the whole extracted page (Tavily `raw_content`) — the largest single tool
+payload, and it rides + re-bills in the window until compaction. `clean_markdown` (web/backend.py)
+trims boilerplate the model can't use: image embeds `![alt](url)` collapse to their alt text (the
+URL is dead weight), trailing whitespace goes, blank-line runs collapse.
+
+**Deliberately kept: inline link targets** `[text](url)`. The deep-research flow follows them to new
+sources ("spot gaps, search again"), so stripping them would hurt recall — this stays a prose
+*shaper*, not a link stripper. Applied at the server boundary (web_fetch), so the backend stays a
+faithful transport (test_web asserts the backend still returns raw content). Pure + idempotent, so
+shaped fetches don't bust the prefix cache.

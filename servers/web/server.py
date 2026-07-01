@@ -4,11 +4,10 @@ Backend-agnostic (see backend.py) — Tavily today. Only spawned when TAVILY_API
 
 import json
 import os
-from dataclasses import asdict
 
 from mcp.server.fastmcp import FastMCP
 
-from servers.web.backend import TavilyBackend
+from servers.web.backend import TavilyBackend, clean_markdown
 
 mcp = FastMCP("web")
 _backend = TavilyBackend(os.environ["TAVILY_API_KEY"])
@@ -31,7 +30,10 @@ def web_fetch(url: str) -> str:
     results = _backend.fetch([url])
     if not results:
         return json.dumps({"url": url, "content": "", "error": "could not fetch"})
-    return json.dumps(asdict(results[0]))
+    # Shape the extracted page down to prose (drop image URLs + boilerplate whitespace) before it
+    # enters the window — it's the largest single tool payload. See DECISIONS 2026-07-01.
+    r = results[0]
+    return json.dumps({"url": r.url, "content": clean_markdown(r.content)})
 
 
 if __name__ == "__main__":

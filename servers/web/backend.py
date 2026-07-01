@@ -1,8 +1,19 @@
 """Web backends behind a small protocol, so the web server is provider-agnostic — Tavily today,
 SearXNG/Brave/etc. a one-class swap later (mirrors the Embedder seam)."""
 
+import re
 from dataclasses import dataclass
 from typing import Any, Protocol
+
+
+def clean_markdown(text: str) -> str:
+    """Trim boilerplate from extracted page markdown without touching prose: image embeds collapse
+    to their alt text (the URL is unusable to the model), trailing whitespace goes, blank-line runs
+    collapse. Inline link targets are deliberately kept — deep research follows them to new sources.
+    Pure + idempotent, so shaped fetches don't bust the message-prefix cache."""
+    text = re.sub(r"!\[([^\]]*)\]\([^)]*\)", r"\1", text)  # ![alt](url) -> alt
+    text = "\n".join(line.rstrip() for line in text.splitlines())
+    return re.sub(r"\n{3,}", "\n\n", text).strip()
 
 
 @dataclass
